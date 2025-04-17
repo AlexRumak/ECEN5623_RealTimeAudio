@@ -1,13 +1,19 @@
-# ECEN5623_RealTimeAudio
+# ECEN5623_RealTimeVisualizer
 
 ## Authors
 
-1. Alexander Rumak
+1. Ali Sulehria
+2. Alexander Rumak
+3. Hyounjun Chang
+
+## Todo:
+1. Create Service Deadlines plan
+2. Create service implementations and record baseline WCET
 
 ## Feature Plans
 
 1. Live audio-input
-2. live GPIO PCM output
+2. live GPIO PCM (pulse code modulation) output
 
 ## Contributing
 
