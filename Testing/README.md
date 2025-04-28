@@ -29,3 +29,6 @@ If you need to read about LINUX, see
 [LINUX documentation](https://github.com/torvalds/linux/blob/master/Documentation/).
 There is also [The Linux Kernel](https://www.kernel.org/doc/html/v5.5/process/volatile-considered-harmful.html)
 documentation.
+
+## Tests to do:
+1. Test sequencer precision with less than 10ms sequencer period (try 5ms).
