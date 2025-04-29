@@ -71,9 +71,9 @@ private:
   long _releaseNumber;
   std::counting_semaphore<1> _releaseService;
 
+  volatile std::atomic<bool> _serviceStarted = std::atomic<bool>(false);
   volatile std::atomic<bool> _running = std::atomic<bool>(true);
-  bool _serviceStarted = false;
-  std::chrono::high_resolution_clock::time_point _firstRelease;
+  volatile std::atomic<std::chrono::high_resolution_clock::time_point> _firstRelease;
 };
 
 class Sequencer

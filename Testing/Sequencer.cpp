@@ -75,20 +75,20 @@ void Service::stop()
 
 void Service::release()
 {
-  if (_serviceStarted)
+  if (!_serviceStarted.load())
   {
-    _serviceStarted = true;
-    _firstRelease = std::chrono::high_resolution_clock::now();
+    _serviceStarted.store(true);
+    _firstRelease.store(std::chrono::high_resolution_clock::now());
   }
   else
   {
     auto now = std::chrono::high_resolution_clock::now();
-    auto time_released = std::chrono::duration_cast<std::chrono::microseconds>(now - _firstRelease).count();
+    auto time_released = std::chrono::duration_cast<std::chrono::microseconds>(now - _firstRelease.load()).count();
     auto expected = std::chrono::microseconds(_releaseNumber * _period * 1000).count();
     _releaseStats.Add({static_cast<double>(time_released - expected) / 1000.0});
   }
-  _releaseService.release();
   _releaseNumber++;
+  _releaseService.release();
 }
 
 //////////////////// SEQUENCER ////////////////////
@@ -119,7 +119,7 @@ void Sequencer::startServices(std::shared_ptr<std::atomic<bool>> keepRunning)
     
     for(auto& service : _services)
     {
-      if (_period * iterations == service->getPeriod())
+      if (_period * iterations % service->getPeriod() == 0)
       {
         service->release();
       }
@@ -131,6 +131,41 @@ void Sequencer::startServices(std::shared_ptr<std::atomic<bool>> keepRunning)
   }
 }
 
+void printServiceStatistics(std::unique_ptr<Service>& service, const std::string& name)
+{
+  auto releaseStats = service->releaseStats();
+  auto executionStats = service->executionTimeStats();
+  std::cout << "================================================================\n";
+  std::cout << "Service " << name << " Execution Statistics\n";
+  std::cout << "Execution Time Average: " << executionStats.GetAverageDurationMs() << "ms\n";
+  std::cout << "Execution Time Max: " << executionStats.GetMaxVal() << "ms\n";
+  std::cout << "Execution Time Min: " << executionStats.GetMinVal() << "ms\n";
+  std::cout << "Release Time Average Error: " << releaseStats.GetAverageDurationMs() << "ms\n";
+  std::cout << "Executions that met deadline: " << executionStats.GetNumberCompletedOnTime(service->getPeriod()) << "/" << executionStats.GetNumElements() << "\n";
+  std::cout << "================================================================\n";
+}
+
+void printSequencerStatistics(StatTracker& stats)
+{
+  std::cout << "\n================================================================\n";
+  std::cout << "Sequencer Execution Statistics\n";
+  std::cout << "Execution Time Error Average: " << stats.GetAverageDurationMs() << "ms\n";
+  std::cout << "Execution Time Error Max: " << stats.GetMaxVal() << "ms\n";
+  std::cout << "Execution Time Error Min: " << stats.GetMinVal() << "ms\n";
+  std::cout << "================================================================\n";
+}
+
+void printStatistics(StatTracker& sequencerStats, std::vector<std::unique_ptr<Service>>& services)
+{
+  printSequencerStatistics(sequencerStats);
+  // Print execution statistics
+  for(auto& service : services)
+  {
+    printServiceStatistics(service, service->serviceName());
+  }
+  std::cout << std::endl;
+}
+
 void Sequencer::stopServices()
 {
   for(auto& service : _services)
@@ -138,19 +173,7 @@ void Sequencer::stopServices()
     service->stop();
   }
 
-  // Print execution statistics
-  for(auto& service : _services)
-  {
-    auto releaseStats = service->releaseStats();
-    auto exeuctionTimeStats = service->executionTimeStats();
-
-    std::cout << "Service " << service->serviceName() << " Execution Statistics\n";
-    std::cout << "Execution Time Average: " << exeuctionTimeStats.GetAverageDurationMs() << "\n";
-    std::cout << "Execution Time Max: " << exeuctionTimeStats.GetMaxVal() << "\n";
-    std::cout << "Execution Time Min: " << exeuctionTimeStats.GetMinVal() << "\n";
-    std::cout << "Release Time Average Error: " << releaseStats.GetAverageDurationMs();
-    std::cout << std::endl;
-  } 
+  printStatistics(_stats, _services);
 }
 
 void Sequencer::_checkPeriodCompatability(uint8_t servicePeriod)

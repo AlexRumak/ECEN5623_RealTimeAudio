@@ -52,7 +52,7 @@ public:
 
   double GetAverageDurationMs()
   {
-    return _sum / _totalElements;
+    return _sum / static_cast<double>(_totalElements);
   }
 
   double GetMaxVal()
@@ -90,6 +90,24 @@ public:
 
     auto el = static_cast<int>(std::floor(static_cast<double>(_bufferSize) * percentile));
     return sorted[el].timeMs;
+  }
+
+  int GetNumberCompletedOnTime(double deadline)
+  {
+    long count = 0;
+    for (int i = 0; i < _totalElements; i++)
+    {
+      if (_arr[i].timeMs <= deadline)
+      {
+        count++;
+      }
+    }
+    return count;         
+  }
+
+  int GetNumElements()
+  {
+    return _totalElements;
   }
 
 private:
