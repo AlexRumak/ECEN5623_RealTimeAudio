@@ -15,6 +15,7 @@ stat: Stats.cpp $(HFILES)
 
 sequencer: Main.cpp Sequencer.o $(HFILES)
 	$(CC) $(CFLAGS) -o $@ $< Sequencer.o
+	mv $@ ../
 
 Sequencer.o: Sequencer.cpp $(HFILES)
 	$(CC) $(CFLAGS) -c -o $@ $<
