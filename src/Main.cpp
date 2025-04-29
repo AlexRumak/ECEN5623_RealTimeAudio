@@ -61,6 +61,8 @@ void runSequencer(std::string sequencerType)
 
   sequencer->startServices(keepRunning);
   sequencer->stopServices();
+
+  delete sequencer;
 }
 
 int main(int argc, char* argv[])
