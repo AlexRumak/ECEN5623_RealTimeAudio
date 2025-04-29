@@ -60,7 +60,7 @@ void Service::_doService()
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    _function();
+    _serviceFunction();
 
     auto stop = std::chrono::high_resolution_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);

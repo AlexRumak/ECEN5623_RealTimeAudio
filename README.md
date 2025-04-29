@@ -6,6 +6,16 @@
 2. Alexander Rumak
 3. Hyounjun Chang
 
+## Hardware Assumptions:
+1. Raspberry Pi 4B
+
+## Dependencies:
+
+You must install alsa-l
+```sh
+ sudo apt install libasound2 libasound2-dev
+```
+
 ## Done:
 1. Create sleep based & isr based sequencer
 

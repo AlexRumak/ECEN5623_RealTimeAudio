@@ -1,5 +1,6 @@
 
 /**
+ * @file Sequencer.hpp
  * This is a C++ version of a sequencer using sleeps rather than ISR timers. 
  * The sequencer should run on the main core and the RTCore should run the  
  **/
@@ -18,9 +19,7 @@
 class Service
 {
 public:
-  template<typename T>
-  Service(T&& function, std::string serviceName, uint8_t period, uint8_t priority, uint8_t affinity):
-    _function(function),
+  Service(std::string serviceName, uint8_t period, uint8_t priority, uint8_t affinity) :
     _serviceName(serviceName),
     _period(period),
     _priority(priority),
@@ -31,6 +30,8 @@ public:
   {
     _service = std::jthread(&Service::_doService, this);
   }
+
+  virtual ~Service() = default;
 
   void stop();
   void release();
@@ -54,6 +55,9 @@ public:
   {
     return _serviceName;
   }
+
+protected:
+  virtual void _serviceFunction() = 0;
 
 private:
   void _initializeService();
@@ -80,11 +84,13 @@ class Sequencer
 {
 public:
   Sequencer(uint8_t period, uint8_t priority, uint8_t affinity);
+
+  virtual ~Sequencer() = default;
   
   template<typename... Args>
-  void addService(Args&&... args)
+  void addService(std::unique_ptr<Service> service)
   {
-    _services.emplace_back(std::make_unique<Service>(std::forward<Args>(args)...));
+    _services.emplace_back(std::move(service));
 
     _checkPeriodCompatability(_services[_services.size() - 1]->getPeriod());
   }

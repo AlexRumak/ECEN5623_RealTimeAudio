@@ -1,4 +1,5 @@
 /**
+ * @file Microphone.hpp
  * Service definition for microphone helpers
  * ALSA implementation
  */
@@ -6,15 +7,11 @@
 
 #include <alsa/asoundlib.h>
 
-class USBMicrophone
+class Microphone
 {
-  USBMicrophone()
-  {
+public:
+  Microphone();
+  virtual ~Microphone() = default;
 
-  }
-
-  ~USBMicrophone()
-  {
-
-  }
+private: 
 };

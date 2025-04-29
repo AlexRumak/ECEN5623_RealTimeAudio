@@ -1,5 +1,6 @@
 /**
- * Class for testing Stats.hpp
+ * @file Stats.cpp
+ * Main class for testing Stats.hpp
  */
 #include "Stats.hpp"
 

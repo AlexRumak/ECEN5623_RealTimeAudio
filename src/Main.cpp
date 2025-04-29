@@ -5,6 +5,7 @@
 
 #include "Sequencer.hpp"
 #include "Fib.hpp"
+
 #include <csignal>
 #include <iostream>
 
@@ -18,15 +19,46 @@
 FibonacciLoadGenerator fib10(SEQ, TENMS);
 FibonacciLoadGenerator fib20(SEQ, TWENTYMS);
 
-void fibonacciTenService()
+class MicrophoneService : public Service
 {
-  fib10.GenerateLoad(); 
-}
+public:
+  MicrophoneService(std::string id, uint8_t period, uint8_t priority, uint8_t affinity)
+    : Service("microphone[" + id + "]", period, priority, affinity)
+  {
+    
+  }
 
-void fibonacciTwentyService()
+  ~MicrophoneService()
+  {
+
+  }
+
+protected:
+  void _serviceFunction() override
+  {
+    std::cout << "Hello World" << std::endl;
+  }
+};
+
+class BeeperService : public Service
 {
-  fib20.GenerateLoad();
-}
+public:
+  BeeperService(std::string id, uint8_t period, uint8_t priority, uint8_t affinity)
+    : Service("beeper[" + id + "]", period, priority, affinity)
+  {
+    
+  }
+
+  ~BeeperService(){
+
+  }
+
+protected:
+  void _serviceFunction() override
+  {
+    std::cout << "Hello World" << std::endl;
+  }
+};
 
 std::shared_ptr<std::atomic<bool>> keepRunning; 
 
@@ -56,8 +88,12 @@ void runSequencer(std::string sequencerType)
     std::cerr << "Fatal error, not sleep | isr" << std::endl;
   }
 
-  sequencer->addService(fibonacciTenService, "fib10", 20, maxPriority, SERVICES_CORE);
-  sequencer->addService(fibonacciTwentyService, "fib20", 50, maxPriority - 1, SERVICES_CORE);
+  // starts service threads instantly, but will not run anything
+  auto serviceOne = std::make_unique<MicrophoneService>("1", 20, maxPriority, SERVICES_CORE); 
+  auto serviceTwo = std::make_unique<BeeperService>("2", 20, maxPriority - 1, SERVICES_CORE);
+
+  sequencer->addService(std::move(serviceOne));
+  sequencer->addService(std::move(serviceTwo));
 
   sequencer->startServices(keepRunning);
   sequencer->stopServices();
