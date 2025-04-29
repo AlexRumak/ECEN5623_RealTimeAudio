@@ -6,6 +6,9 @@
 2. Alexander Rumak
 3. Hyounjun Chang
 
+## Done:
+1. Create sleep based & isr based sequencer
+
 ## Todo:
 1. Create Service Deadlines plan
 2. Create service implementations and record baseline WCET
