@@ -92,9 +92,35 @@ public:
   void startServices(std::shared_ptr<std::atomic<bool>> keepRunning);
   void stopServices();
 
-private:
-  void _checkPeriodCompatability(uint8_t servicePeriod);
+protected:
   std::vector<std::unique_ptr<Service>> _services;
   uint8_t _period;
   StatTracker _stats;
+
+  virtual void _waitForRelease() = 0;
+  virtual void _initializeSequencer() = 0;
+
+private:
+  void _checkPeriodCompatability(uint8_t servicePeriod);
+};
+
+
+
+class SequencerFactory
+{
+public:
+  SequencerFactory(uint8_t period, uint8_t priority, uint8_t affinity):
+    _period(period),
+    _priority(priority),
+    _affinity(affinity)
+  {
+  }
+
+  Sequencer* createISRSequencer();
+  Sequencer* createSleepSequencer();
+  
+private:
+  uint8_t _period;
+  uint8_t _priority;
+  uint8_t _affinity;
 };

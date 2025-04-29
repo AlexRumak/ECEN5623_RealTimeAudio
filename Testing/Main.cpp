@@ -36,21 +36,45 @@ void interruptHandler(int sig)
     keepRunning->store(false);
 }
 
-void runSequencer()
+void runSequencer(std::string sequencerType)
 {
   int maxPriority = sched_get_priority_max(SCHED_FIFO);
-  Sequencer sequencer(10, maxPriority, SEQUENCER_CORE);
-  sequencer.addService(fibonacciTenService, "fib10", 20, maxPriority, SERVICES_CORE);
-  sequencer.addService(fibonacciTwentyService, "fib20", 50, maxPriority - 1, SERVICES_CORE);
+  SequencerFactory factory(10, maxPriority, SEQUENCER_CORE);
 
-  sequencer.startServices(keepRunning);
-  sequencer.stopServices();
+  Sequencer* sequencer;
+
+  if (sequencerType == "sleep")
+  {
+    sequencer = factory.createSleepSequencer();
+  }
+  else if (sequencerType == "isr")
+  {
+    sequencer = factory.createISRSequencer();
+  }
+  else
+  {
+    std::cerr << "Fatal error, not sleep | isr" << std::endl;
+  }
+
+  sequencer->addService(fibonacciTenService, "fib10", 20, maxPriority, SERVICES_CORE);
+  sequencer->addService(fibonacciTwentyService, "fib20", 50, maxPriority - 1, SERVICES_CORE);
+
+  sequencer->startServices(keepRunning);
+  sequencer->stopServices();
 }
 
 int main(int argc, char* argv[])
 {
+  if (argc != 2) 
+  {
+    std::cout << "Usage: sequencer <sleep|isr>" << std::endl;
+    exit(1);
+  }
+
+  std::string sequencerType = argv[1];
+
   keepRunning = std::make_shared<std::atomic<bool>>(true);
   signal(SIGINT, interruptHandler);
 
-  runSequencer();
+  runSequencer(sequencerType);
 }

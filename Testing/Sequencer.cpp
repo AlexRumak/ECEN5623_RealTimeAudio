@@ -7,6 +7,7 @@
 #include <thread>
 #include <iostream>
 #include <syslog.h>
+#include <csignal>
 
 #define ERROR 1
 
@@ -91,44 +92,13 @@ void Service::release()
   _releaseService.release();
 }
 
-//////////////////// SEQUENCER ////////////////////
+//////////////////// SEQUENCER MAIN ////////////////////
 Sequencer::Sequencer(uint8_t period, uint8_t priority, uint8_t affinity):
   _period(period),
   _stats(StatTracker(1000))
 {
   setCurrentThreadAffinity(affinity);
   setCurrentThreadPriority(priority);
-}
-
-void Sequencer::startServices(std::shared_ptr<std::atomic<bool>> keepRunning)
-{
-  using namespace std::chrono_literals;
-
-  const auto start = std::chrono::high_resolution_clock::now();
-
-  long iterations = 0;
-  while(keepRunning->load())
-  {
-    auto now = std::chrono::high_resolution_clock::now();
-
-    long uElapsed = std::chrono::duration_cast<std::chrono::microseconds>(now - start).count();
-    double msElapsed = static_cast<double>(uElapsed) / 1000.0;
-    double expectedMs = static_cast<double>(iterations * _period);
-
-    _stats.Add({msElapsed - expectedMs});
-    
-    for(auto& service : _services)
-    {
-      if (_period * iterations % service->getPeriod() == 0)
-      {
-        service->release();
-      }
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(_period));
-
-    iterations++;
-  }
 }
 
 void printServiceStatistics(std::unique_ptr<Service>& service, const std::string& name)
@@ -166,6 +136,38 @@ void printStatistics(StatTracker& sequencerStats, std::vector<std::unique_ptr<Se
   std::cout << std::endl;
 }
 
+void Sequencer::startServices(std::shared_ptr<std::atomic<bool>> keepRunning) 
+{
+  using namespace std::chrono_literals;
+
+  _initializeSequencer();
+
+  const auto start = std::chrono::high_resolution_clock::now();
+
+  long iterations = 0;
+  while(keepRunning->load())
+  {
+    _waitForRelease();
+
+    auto now = std::chrono::high_resolution_clock::now();
+    long uElapsed = std::chrono::duration_cast<std::chrono::microseconds>(now - start).count();
+    double msElapsed = static_cast<double>(uElapsed) / 1000.0;
+    double expectedMs = static_cast<double>(iterations * _period);
+
+    _stats.Add({msElapsed - expectedMs});
+    
+    for(auto& service : _services)
+    {
+      if (_period * iterations % service->getPeriod() == 0)
+      {
+        service->release();
+      }
+    }
+
+    iterations++;
+  }
+}
+
 void Sequencer::stopServices()
 {
   for(auto& service : _services)
@@ -182,4 +184,157 @@ void Sequencer::_checkPeriodCompatability(uint8_t servicePeriod)
   {
     throw std::invalid_argument("Service not compatible with sequencer. The service period must be divisible by the sequencer period.");
   }
+}
+
+//////////////////// SEQUENCER ISR BASED ////////////////////
+
+class ISRSequencer : public Sequencer
+{
+public:
+  ISRSequencer(uint8_t period, uint8_t priority, uint8_t affinity) : Sequencer(period, priority, affinity),
+    _releaseSequencer(0)
+  {
+
+  }
+
+  ~ISRSequencer()
+  {
+    deleteTimer();
+  }
+
+protected:
+  void _waitForRelease() override
+  {
+    auto acquired = _releaseSequencer.try_acquire_for(std::chrono::milliseconds(_period * 2));
+
+    if (!acquired)
+    {
+      std::cerr << "Fatal error - sequencer did not release in twice its period" << std::endl;
+      exit(1);
+    }
+  }
+
+  void _initializeSequencer() override
+  {
+    setPeriodAlarm(_period);
+  }
+
+private:
+  timer_t timerid;
+  std::counting_semaphore<1> _releaseSequencer;
+
+  void deleteTimer()
+  {
+    if (timer_delete(timerid) == ERROR)
+    {
+        perror("timer_delete");
+        exit(-1);
+    }
+  }
+
+  void onAlarm()
+  {
+    _releaseSequencer.release();
+  }
+
+  void setPeriodAlarm(long intervalMs)
+  {
+      struct sigevent sev;
+      struct itimerspec its;
+      struct sigaction sa;
+
+      sa.sa_flags = SA_SIGINFO;
+      sa.sa_sigaction = handleAlarm;
+      sigemptyset(&sa.sa_mask);
+      if (sigaction(SIGALRM, &sa, NULL) == ERROR)
+      {
+          perror("sigaction");
+          exit(-1);
+      }
+
+      // Create Timer
+      sev.sigev_notify = SIGEV_SIGNAL;
+      sev.sigev_signo = SIGALRM;
+      sev.sigev_value.sival_ptr = this;
+
+      if (timer_create(CLOCK_MONOTONIC, &sev, &timerid) == ERROR)
+      {
+          perror("timer_create");
+          exit(-1);
+      }
+
+      its.it_value.tv_sec = 0;
+      its.it_value.tv_nsec = 1; // Start instantly
+      its.it_interval.tv_sec = 0;
+      its.it_interval.tv_nsec = intervalMs * 1000000; // Convert milliseconds to nanoseconds
+
+      // Start the timer
+      if (timer_settime(timerid, 0, &its, NULL) == ERROR)
+      {
+          perror("timer_settime");
+          exit(-1);
+      }
+  }
+
+  static void handleAlarm(int sig, siginfo_t *si, void *uc)
+  {
+
+      if (sig != SIGALRM) {
+          write(STDOUT_FILENO, "Unexpected signal\n", 19);
+          return;
+      }
+
+      auto *self = static_cast<ISRSequencer*>(si->si_value.sival_ptr);
+      if (self) {
+          self->onAlarm();
+      }
+      else {
+          write(STDOUT_FILENO, "Unexpected signal\n", 19);
+      }
+  }
+};
+
+//////////////////// SEQUENCER SLEEP BASED ////////////////////
+class SleepSequencer : public Sequencer
+{
+public:
+  SleepSequencer(uint8_t period, uint8_t priority, uint8_t affinity) : Sequencer(period, priority, affinity)
+  {
+
+  }
+
+  ~SleepSequencer()
+  {
+
+  }
+
+protected:
+  bool firstTime = true;
+  void _waitForRelease() override
+  {
+    if (firstTime)
+    {
+      firstTime = false;
+      return;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(_period));
+  }
+
+  void _initializeSequencer() override
+  {
+
+  }
+
+private:
+};
+
+/////////////// SEQUENCER FACTORY ///////////////////
+Sequencer* SequencerFactory::createISRSequencer()
+{
+  return new ISRSequencer(_period, _priority, _affinity);
+}
+
+Sequencer* SequencerFactory::createSleepSequencer()
+{
+  return new SleepSequencer(_period, _priority, _affinity);
 }
