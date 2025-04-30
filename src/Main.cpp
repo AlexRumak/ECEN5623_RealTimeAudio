@@ -1,10 +1,11 @@
 /**
  * @file Main.cpp
- * @brief Main file for the SleepBasedTimer experiment.
+ * @brief Main file for the real-time audio sequencer. 
  */
 
 #include "Sequencer.hpp"
 #include "Fib.hpp"
+#include "RealTime.hpp"
 
 #include <csignal>
 #include <iostream>
@@ -68,25 +69,11 @@ void interruptHandler(int sig)
     keepRunning->store(false);
 }
 
-void runSequencer(std::string sequencerType)
+void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
 {
   int maxPriority = sched_get_priority_max(SCHED_FIFO);
-  SequencerFactory factory(10, maxPriority, SEQUENCER_CORE);
 
-  Sequencer* sequencer;
-
-  if (sequencerType == "sleep")
-  {
-    sequencer = factory.createSleepSequencer();
-  }
-  else if (sequencerType == "isr")
-  {
-    sequencer = factory.createISRSequencer();
-  }
-  else
-  {
-    std::cerr << "Fatal error, not sleep | isr" << std::endl;
-  }
+  Sequencer* sequencer = realTimeSettings->createSequencer(10, maxPriority, SEQUENCER_CORE);
 
   // starts service threads instantly, but will not run anything
   auto serviceOne = std::make_unique<MicrophoneService>("1", 20, maxPriority, SERVICES_CORE); 
@@ -103,16 +90,13 @@ void runSequencer(std::string sequencerType)
 
 int main(int argc, char* argv[])
 {
-  if (argc != 2) 
-  {
-    std::cout << "Usage: sequencer <sleep|isr>" << std::endl;
-    exit(1);
-  }
+  std::shared_ptr<RealTimeSettings> realTimeSettings = RealTimeSettings::parseSettings(argc, argv);
 
-  std::string sequencerType = argv[1];
+  realTimeSettings->setRealtimeSettings();
 
+  // Interrupt handler
   keepRunning = std::make_shared<std::atomic<bool>>(true);
   signal(SIGINT, interruptHandler);
 
-  runSequencer(sequencerType);
+  runSequencer(realTimeSettings);
 }

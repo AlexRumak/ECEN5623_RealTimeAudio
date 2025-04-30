@@ -6,6 +6,7 @@
  **/
 #pragma once
 
+#include "Stats.hpp"
 #include <cstdint>
 #include <vector>
 #include <memory>
@@ -14,7 +15,6 @@
 #include <thread>
 #include <semaphore>
 #include <string>
-#include "Stats.hpp"
 
 class Service
 {
@@ -115,18 +115,8 @@ private:
 class SequencerFactory
 {
 public:
-  SequencerFactory(uint8_t period, uint8_t priority, uint8_t affinity):
-    _period(period),
-    _priority(priority),
-    _affinity(affinity)
-  {
-  }
+  SequencerFactory() = default;
 
-  Sequencer* createISRSequencer();
-  Sequencer* createSleepSequencer();
-  
-private:
-  uint8_t _period;
-  uint8_t _priority;
-  uint8_t _affinity;
+  Sequencer* createISRSequencer(uint8_t period, uint8_t priority, uint8_t affinity);
+  Sequencer* createSleepSequencer(uint8_t period, uint8_t priority, uint8_t affinity);
 };

@@ -3,11 +3,11 @@
  */
 
 #include "Sequencer.hpp"
+#include <csignal>
 #include <chrono>
 #include <thread>
 #include <iostream>
 #include <syslog.h>
-#include <csignal>
 
 #define ERROR 1
 
@@ -329,12 +329,12 @@ private:
 };
 
 /////////////// SEQUENCER FACTORY ///////////////////
-Sequencer* SequencerFactory::createISRSequencer()
+Sequencer* SequencerFactory::createISRSequencer(uint8_t period, uint8_t priority, uint8_t affinity)
 {
-  return new ISRSequencer(_period, _priority, _affinity);
+  return new ISRSequencer(period, priority, affinity);
 }
 
-Sequencer* SequencerFactory::createSleepSequencer()
+Sequencer* SequencerFactory::createSleepSequencer(uint8_t period, uint8_t priority, uint8_t affinity)
 {
-  return new SleepSequencer(_period, _priority, _affinity);
+  return new SleepSequencer(period, priority, affinity);
 }
