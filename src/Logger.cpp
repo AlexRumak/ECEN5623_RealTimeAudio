@@ -10,7 +10,7 @@
 class StdOutLogger : public Logger
 {
 public:
-  StdOutLogger(std::string context): Logger(context)
+  StdOutLogger(std::string context, LogLevel level): Logger(context, level)
   {
   }
 
@@ -20,13 +20,19 @@ public:
 
   void log(LogLevel level, std::string message) override
   {
+    if (level < _level)
+    {
+      // don't log
+      return;
+    }
+
     if (level == ERROR)
     {
-      std::cerr << message << std::endl;
+      std::cerr << logLevelStr(level) << contextStr() << " " << message << std::endl;
     }
     else
     {
-      std::cout << message << std::endl;
+      std::cout << logLevelStr(level) << contextStr() << " " << message << std::endl;
     }
   }
 };
@@ -35,7 +41,7 @@ Logger *LoggerFactory::createLogger(std::string context)
 {
   if (_loggerType == STDOUT)
   {
-    return new StdOutLogger(context);
+    return new StdOutLogger(context, _loglevel);
   }
   else
   {
