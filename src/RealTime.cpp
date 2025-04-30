@@ -112,7 +112,6 @@ private:
 
   void parseSetting(std::string setting, std::vector<Flag> &flags, std::vector<Option> &options)
   {
-
     if (setting.find("=") != std::string::npos)
     {
       // split on "="
@@ -167,33 +166,20 @@ private:
         { "kthread_cpus", {0, 1}}
       };
 
-    std::stringstream settings;
     // isolcpus=2-3" "nohz_full=2-3" "rcu_nocbs=2-3" "kthread_cpus=0-1" "nosoftlockup" "rcu_nocb_poll"
-    for(size_t i = 0; i < content.length(); i++)
+    while(content.find(delimeter) != std::string::npos || content.find("\n") != std::string::npos)
     {
-      if (content[i] != delimeter)
-      {
-        settings << content[i];
-      }
-      else
-      {
-        std::string setting = settings.str();
-
-        parseSetting(setting, flags, cpuOptions);
-
-        // clear settings
-        settings.str("");
-        settings.clear();
-      }
+      auto post = content.find(delimeter) != std::string::npos ? content.find(delimeter) : content.find("\n");
+      auto setting = content.substr(0, post);
+      content = content.substr(post + 1);
+      parseSetting(setting, flags, cpuOptions);
     }
-    std::string setting = settings.str();
-    parseSetting(setting, flags, cpuOptions);
 
     // check if flags were set
     std::stringstream flagsErr;
     for (size_t i = 0; i < flags.size(); i++)
     {
-      if (flags[i].found)
+      if (!flags[i].found)
       {
         flagsErr << flags[i].name << " ";
       }

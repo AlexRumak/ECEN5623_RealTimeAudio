@@ -75,7 +75,7 @@ private:
   std::jthread _service;
   StatTracker _releaseStats;
   StatTracker _executionTimeStats;
-  long _releaseNumber;
+  long _releaseNumber = 0;
   std::counting_semaphore<1> _releaseService;
   logger::Logger *_logger;
 

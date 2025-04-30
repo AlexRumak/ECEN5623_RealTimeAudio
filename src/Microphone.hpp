@@ -8,8 +8,10 @@
 class Microphone
 {
 public:
-  Microphone();
+  Microphone() = default;
   virtual ~Microphone() = default;
+
+
 
 private: 
 };

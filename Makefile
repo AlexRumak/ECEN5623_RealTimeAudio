@@ -2,9 +2,9 @@ CC=g++
 
 CFLAGS=-std=c++23 -Wall -Werror -pedantic
 LIBS=-lasound
-HFILES=src/Fib.hpp src/Stats.hpp src/Sequencer.hpp src/Microphone.hpp src/RealTime.hpp src/Logger.hpp
+HFILES=src/Fib.hpp src/Stats.hpp src/Sequencer.hpp src/Microphone.hpp src/RealTime.hpp src/Logger.hpp src/AudioBuffer.hpp
 
-OUTFILES=out/Logger.o out/RealTime.o out/Sequencer.o out/Microphone.o 
+OUTFILES=out/Logger.o out/RealTime.o out/Sequencer.o out/Microphone.o out/AudioBuffer.o
 FILES=fib stat sequencer $(OUTFILES)
 
 all: sequencer
@@ -20,6 +20,9 @@ sequencer: src/Main.cpp $(OUTFILES) $(HFILES)
 
 out:
 	mkdir $@
+
+out/AudioBuffer.o: src/AudioBuffer.cpp src/AudioBuffer.hpp
+	$(CC) $(CFLAGS) $(LIBS) -c -o $@ $<
 
 out/Logger.o: src/Logger.cpp src/Logger.hpp 
 	$(CC) $(CFLAGS) $(LIBS) -c -o $@ $<
