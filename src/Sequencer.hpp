@@ -21,7 +21,7 @@
 class Service
 {
 public:
-  Service(std::string serviceName, uint8_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<LoggerFactory> loggerFactory) :
+  Service(std::string serviceName, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory) :
     _serviceName(serviceName),
     _period(period),
     _priority(priority),
@@ -69,7 +69,7 @@ private:
   // Constructor parameters - order matters
   std::function<void(void)> _function;
   std::string _serviceName;
-  uint8_t _period;
+  uint16_t _period;
   uint8_t _priority;
   uint8_t _affinity;
   std::jthread _service;
@@ -77,7 +77,7 @@ private:
   StatTracker _executionTimeStats;
   long _releaseNumber;
   std::counting_semaphore<1> _releaseService;
-  Logger *_logger;
+  logger::Logger *_logger;
 
   volatile std::atomic<bool> _serviceStarted = std::atomic<bool>(false);
   volatile std::atomic<bool> _running = std::atomic<bool>(true);
@@ -87,7 +87,7 @@ private:
 class Sequencer
 {
 public:
-  Sequencer(uint8_t period, uint8_t priority, uint8_t affinity);
+  Sequencer(uint16_t period, uint8_t priority, uint8_t affinity);
 
   virtual ~Sequencer() = default;
   
@@ -104,14 +104,14 @@ public:
 
 protected:
   std::vector<std::unique_ptr<Service>> _services;
-  uint8_t _period;
+  uint16_t _period;
   StatTracker _stats;
 
   virtual void _waitForRelease() = 0;
   virtual void _initializeSequencer() = 0;
 
 private:
-  void _checkPeriodCompatability(uint8_t servicePeriod);
+  void _checkPeriodCompatability(uint16_t servicePeriod);
 };
 
 
@@ -121,6 +121,6 @@ class SequencerFactory
 public:
   SequencerFactory() = default;
 
-  Sequencer* createISRSequencer(uint8_t period, uint8_t priority, uint8_t affinity);
-  Sequencer* createSleepSequencer(uint8_t period, uint8_t priority, uint8_t affinity);
+  Sequencer* createISRSequencer(uint16_t period, uint8_t priority, uint8_t affinity);
+  Sequencer* createSleepSequencer(uint16_t period, uint8_t priority, uint8_t affinity);
 };

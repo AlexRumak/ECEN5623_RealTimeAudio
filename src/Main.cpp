@@ -23,7 +23,7 @@ FibonacciLoadGenerator fib20(SEQ, TWENTYMS);
 class MicrophoneService : public Service
 {
 public:
-  MicrophoneService(std::string id, uint8_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<LoggerFactory> loggerFactory)
+  MicrophoneService(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory)
     : Service("microphone[" + id + "]", period, priority, affinity, loggerFactory)
   {
     
@@ -43,7 +43,7 @@ protected:
 class BeeperService : public Service
 {
 public:
-  BeeperService(std::string id, uint8_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<LoggerFactory> loggerFactory)
+  BeeperService(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory)
     : Service("beeper[" + id + "]", period, priority, affinity, loggerFactory)
   {
     
@@ -62,7 +62,7 @@ protected:
 class LogsToFileService : public Service
 {
 public:
-  LogsToFileService(std::string id, uint8_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<LoggerFactory> loggerFactory)
+  LogsToFileService(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory)
     : Service("logstofile[" + id + "]", period, priority, affinity, loggerFactory)
   {
     
@@ -88,7 +88,7 @@ void interruptHandler(int sig)
 
 void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
 {
-  std::shared_ptr<LoggerFactory> loggerFactory = realTimeSettings->getLoggerFactory();
+  std::shared_ptr<logger::LoggerFactory> loggerFactory = realTimeSettings->getLoggerFactory();
 
   int maxPriority = sched_get_priority_max(SCHED_FIFO);
   int minPriority = sched_get_priority_min(SCHED_FIFO);

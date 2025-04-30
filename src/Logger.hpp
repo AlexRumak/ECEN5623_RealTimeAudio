@@ -7,82 +7,86 @@
 #include <string>
 #include <sstream>
 
-enum LogLevel
+namespace logger
 {
-  ERROR = 0,
-  INFO = 1,
-  WARNING = 2,
-  TRACE = 3
-};
-
-enum LoggerType
-{
-  STDOUT,
-  SYSLOG,
-  BACKGROUND
-};
-
-class Logger
-{
-public:
-  Logger(std::string context, LogLevel level)
+  enum LogLevel
   {
-    _context = context;
-    _level = level;
-  }
-  virtual ~Logger() = default;
-  virtual void log(LogLevel level, std::string message) = 0;
-protected:
+    ERROR = 0,
+    INFO = 1,
+    WARNING = 2,
+    TRACE = 3
+  };
 
-  virtual std::string contextStr()
+  enum LoggerType
   {
-    if (cachedContext != "")
+    STDOUT,
+    SYSLOG,
+    BACKGROUND
+  };
+
+  class Logger
+  {
+  public:
+    Logger(std::string context, LogLevel level)
     {
+      _context = context;
+      _level = level;
+    }
+    virtual ~Logger() = default;
+    virtual void log(LogLevel level, std::string message) = 0;
+  protected:
+
+    virtual std::string contextStr()
+    {
+      if (cachedContext != "")
+      {
+        return cachedContext;
+      }
+
+      std::stringstream stream;
+      stream << "[" << _context << "]";
+      cachedContext = stream.str();
+
       return cachedContext;
     }
+    LogLevel _level;
+    std::string _context;
 
-    std::stringstream stream;
-    stream << "[" << _context << "]";
-    cachedContext = stream.str();
-
-    return cachedContext;
-  }
-  LogLevel _level;
-  std::string _context;
-
-  virtual std::string logLevelStr(LogLevel level)
-  {
-    switch (level)
+    virtual std::string logLevelStr(LogLevel level)
     {
-      case ERROR:
-        return "[ERROR]";
-      case INFO:
-        return "[INFO]";
-      case WARNING:
-        return "[WARNING]";
-      case TRACE:
-        return "[TRACE]";
-      default:
-        return "[UNKNOWN]";
+      switch (level)
+      {
+        case ERROR:
+          return "[ERROR]";
+        case INFO:
+          return "[INFO]";
+        case WARNING:
+          return "[WARNING]";
+        case TRACE:
+          return "[TRACE]";
+        default:
+          return "[UNKNOWN]";
+      }
     }
-  }
 
-private:
-  std::string cachedContext = "";
-};
+  private:
+    std::string cachedContext = "";
+  };
 
-class LoggerFactory
-{
-public:
-  LoggerFactory(LoggerType type, LogLevel level)
+  class LoggerFactory
   {
-    _loggerType = type;
-    _loglevel = level;
-  }
+  public:
+    LoggerFactory(LoggerType type, LogLevel level)
+    {
+      _loggerType = type;
+      _loglevel = level;
+    }
 
-  Logger *createLogger(std::string context);
+    Logger *createLogger(std::string context);
 
-private:
-  LoggerType _loggerType;
-  LogLevel _loglevel;
-};
+  private:
+    LoggerType _loggerType;
+    LogLevel _loglevel;
+  };
+}
+

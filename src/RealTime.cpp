@@ -28,7 +28,7 @@ struct Flag
 class RealTimeSettingsImpl : public RealTimeSettings
 {
 public:
-  RealTimeSettingsImpl(SequencerType type, std::shared_ptr<LoggerFactory> factory):
+  RealTimeSettingsImpl(SequencerType type, std::shared_ptr<logger::LoggerFactory> factory):
     RealTimeSettings(type, factory)
   {
     _logger = factory->createLogger("RealTimeSettingsImpl");
@@ -45,7 +45,7 @@ public:
     checkBootSettings();
   }
 
-  Sequencer *createSequencer(uint8_t period, uint8_t priority, uint8_t affinity) override
+  Sequencer *createSequencer(uint16_t period, uint8_t priority, uint8_t affinity) override
   {
     if (_factory == nullptr)
     {
@@ -67,7 +67,7 @@ public:
   }
 
 private:
-  Logger *_logger;
+  logger::Logger *_logger;
 
   void checkSudo()
   {
@@ -205,7 +205,7 @@ private:
     {
       std::stringstream cerr;
       cerr << "WARNING - flags not present: " << error;
-      _logger->log(INFO, cerr.str());
+      _logger->log(logger::INFO, cerr.str());
     }
   }
 };
@@ -234,7 +234,7 @@ std::shared_ptr<RealTimeSettings> SettingsParser::parseSettings()
     exit(1);
   }
 
-  auto factory = std::make_shared<LoggerFactory>(LoggerType::STDOUT, LogLevel::INFO);
+  auto factory = std::make_shared<logger::LoggerFactory>(logger::LoggerType::STDOUT, logger::LogLevel::INFO);
   std::shared_ptr<RealTimeSettings> settings = std::make_shared<RealTimeSettingsImpl>(sequencerType, factory);
 
   return settings;

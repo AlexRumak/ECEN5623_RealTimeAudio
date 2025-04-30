@@ -19,7 +19,7 @@ enum SequencerType
 class RealTimeSettings
 {
 public:
-  RealTimeSettings(SequencerType type, std::shared_ptr<LoggerFactory> factory):
+  RealTimeSettings(SequencerType type, std::shared_ptr<logger::LoggerFactory> factory):
     _sequencerType(type)
   {
     _factory = new SequencerFactory();
@@ -36,7 +36,7 @@ public:
   /**
    * Get Logger Factory
    */
-  std::shared_ptr<LoggerFactory> getLoggerFactory()
+  std::shared_ptr<logger::LoggerFactory> getLoggerFactory()
   {
     return _loggerFactory;
   }
@@ -50,15 +50,15 @@ public:
    * @brief Create a sequencer object.
    * @return A pointer to the created sequencer object.
    */
-  virtual Sequencer *createSequencer(uint8_t period, uint8_t priority, uint8_t affinity) = 0;
+  virtual Sequencer *createSequencer(uint16_t period, uint8_t priority, uint8_t affinity) = 0;
 
 protected:
   SequencerType _sequencerType;
   SequencerFactory* _factory;
-  std::shared_ptr<LoggerFactory> _loggerFactory;
+  std::shared_ptr<logger::LoggerFactory> _loggerFactory;
 
 private:
-  Logger* _logger;
+  logger::Logger* _logger;
 };
 
 class SettingsParser

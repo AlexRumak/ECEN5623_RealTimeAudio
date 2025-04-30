@@ -7,10 +7,10 @@
 
 #include <iostream>
 
-class StdOutLogger : public Logger
+class StdOutLogger : public logger::Logger
 {
 public:
-  StdOutLogger(std::string context, LogLevel level): Logger(context, level)
+  StdOutLogger(std::string context, logger::LogLevel level): Logger(context, level)
   {
   }
 
@@ -18,7 +18,7 @@ public:
   {
   }
 
-  void log(LogLevel level, std::string message) override
+  void log(logger::LogLevel level, std::string message) override
   {
     if (level > _level)
     {
@@ -26,7 +26,7 @@ public:
       return;
     }
 
-    if (level == ERROR)
+    if (level == logger::ERROR)
     {
       std::cerr << logLevelStr(level) << contextStr() << " " << message << std::endl;
     }
@@ -39,7 +39,7 @@ public:
 
 // TODO: Implement Logger that uses a queue to send messages to a background thread at a lower priority.
 
-Logger *LoggerFactory::createLogger(std::string context)
+logger::Logger *logger::LoggerFactory::createLogger(std::string context)
 {
   if (_loggerType == STDOUT)
   {
