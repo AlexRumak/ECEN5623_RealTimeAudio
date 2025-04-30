@@ -20,7 +20,7 @@ public:
 
   void log(LogLevel level, std::string message) override
   {
-    if (level < _level)
+    if (level > _level)
     {
       // don't log
       return;
@@ -36,6 +36,8 @@ public:
     }
   }
 };
+
+// TODO: Implement Logger that uses a queue to send messages to a background thread at a lower priority.
 
 Logger *LoggerFactory::createLogger(std::string context)
 {

@@ -9,7 +9,7 @@
 #include <iostream>
 #include <syslog.h>
 
-#define ERROR 1
+#define FATAL_ERR 1
 
 //////////////////// HELPER ////////////////////
 void setCurrentThreadAffinity(int cpu)
@@ -21,7 +21,7 @@ void setCurrentThreadAffinity(int cpu)
     if (pthread_setaffinity_np(self, sizeof(cpu_set_t), &cpuset) != 0)
     {
         std::cerr << "Error setting CPU affinity" << std::endl;
-        exit(ERROR);
+        exit(FATAL_ERR);
     }
 }
 
@@ -32,7 +32,7 @@ void setCurrentThreadPriority(int priority)
     if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &sch) != 0)
     {
         std::cerr << "Error setting thread priority" << std::endl;
-        exit(ERROR);
+        exit(FATAL_ERR);
     }
 }
 
@@ -48,13 +48,21 @@ void Service::_doService()
 {
   _initializeService();
 
+  int counter = 0;
   while (_running)
   {
     auto acquired = _releaseService.try_acquire_for(std::chrono::milliseconds(_period)); 
     
     if (!acquired)
     {
-      syslog(LOG_WARNING, "Likely service overrun in service");
+      counter++;
+      _logger->log(ERROR, "Service " + _serviceName + " did not release in its period");
+
+      if (counter > 100)
+      {
+        _logger->log(ERROR, "Service " + _serviceName + " has not released in 100 periods. Stopping service.");
+        _running.store(false);
+      }
       continue;
     }
 

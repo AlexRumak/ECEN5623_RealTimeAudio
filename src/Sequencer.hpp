@@ -7,6 +7,8 @@
 #pragma once
 
 #include "Stats.hpp"
+#include "Logger.hpp"
+
 #include <cstdint>
 #include <vector>
 #include <memory>
@@ -19,7 +21,7 @@
 class Service
 {
 public:
-  Service(std::string serviceName, uint8_t period, uint8_t priority, uint8_t affinity) :
+  Service(std::string serviceName, uint8_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<LoggerFactory> loggerFactory) :
     _serviceName(serviceName),
     _period(period),
     _priority(priority),
@@ -28,6 +30,7 @@ public:
     _executionTimeStats(StatTracker(1000)),
     _releaseService(0)
   {
+    _logger = loggerFactory->createLogger(serviceName);
     _service = std::jthread(&Service::_doService, this);
   }
 
@@ -74,6 +77,7 @@ private:
   StatTracker _executionTimeStats;
   long _releaseNumber;
   std::counting_semaphore<1> _releaseService;
+  Logger *_logger;
 
   volatile std::atomic<bool> _serviceStarted = std::atomic<bool>(false);
   volatile std::atomic<bool> _running = std::atomic<bool>(true);

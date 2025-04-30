@@ -2,6 +2,7 @@
  * @file Logger.hpp 
  * A logger that forwards logs to a low priority context.
  */
+#pragma once
 
 #include <string>
 #include <sstream>

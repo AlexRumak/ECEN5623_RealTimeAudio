@@ -34,6 +34,14 @@ public:
   }
 
   /**
+   * Get Logger Factory
+   */
+  std::shared_ptr<LoggerFactory> getLoggerFactory()
+  {
+    return _loggerFactory;
+  }
+
+  /**
    * @brief Check if the system is configured for real-time operation, and set any options that can be set.
    */
   virtual void setRealtimeSettings() = 0;
