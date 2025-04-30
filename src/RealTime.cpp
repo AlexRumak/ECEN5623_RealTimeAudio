@@ -5,64 +5,237 @@
 #include <csignal>
 #include <fstream>
 #include <sstream>
+#include <exception>
 
 #define GENERIC_ERROR 1
 #define COULD_NOT_OPEN_BOOT_OPTIONS "Could not open boot options"
 #define MUST_RUN_AS_ROOT "Must run as root"
 
-//////////////////// REAL TIME CONFIGURATION  ////////////////////
-void checkSudo();
-void checkBootSettings();
-void setPerformanceMode(int core);
-
-void RealTimeSettings::setRealtimeSettings()
+struct Option
 {
-  checkSudo();
-  checkBootSettings();
-}
+  std::string name;
+  std::vector<int> cpus;
+  bool found = false;
+  bool equal = false;
+};
 
-Sequencer *RealTimeSettings::createSequencer(uint8_t period, uint8_t priority, uint8_t affinity)
+struct Flag
 {
-  if (_factory == nullptr)
+  std::string name;
+  bool found = false;
+};
+
+class RealTimeSettingsImpl : public RealTimeSettings
+{
+public:
+  RealTimeSettingsImpl(SequencerType type, std::shared_ptr<LoggerFactory> factory):
+    RealTimeSettings(type, factory)
   {
-    throw std::runtime_error("Factory not initialized");
+    _logger = factory->createLogger("RealTimeSettingsImpl");
   }
 
-  if (_sequencerType == SEQUENCER_SLEEP)
+  ~RealTimeSettingsImpl()
   {
-    return _factory->createSleepSequencer(period, priority, affinity);
+    delete _logger;
   }
-  else if (_sequencerType == SEQUENCER_ISR)
+
+  void setRealtimeSettings() override
   {
-    return _factory->createISRSequencer(period, priority, affinity);
+    checkSudo();
+    checkBootSettings();
+  }
+
+  Sequencer *createSequencer(uint8_t period, uint8_t priority, uint8_t affinity) override
+  {
+    if (_factory == nullptr)
+    {
+      throw std::runtime_error("Factory not initialized");
+    }
+
+    if (_sequencerType == SEQUENCER_SLEEP)
+    {
+      return _factory->createSleepSequencer(period, priority, affinity);
+    }
+    else if (_sequencerType == SEQUENCER_ISR)
+    {
+      return _factory->createISRSequencer(period, priority, affinity);
+    }
+    else
+    {
+      throw std::invalid_argument("Invalid sequencer type");
+    }
+  }
+
+private:
+  Logger *_logger;
+
+  void checkSudo()
+  {
+    if (getuid() != 0)
+    {
+      throw std::runtime_error("Must run as root");
+    }
+  }
+
+  std::vector<int> getCpusFromOption(std::string optionVal)
+  {
+    std::vector<int> ret;
+
+    // parse optionValue
+    auto dash = optionVal.find("-");
+    auto comma = optionVal.find(",");
+
+    if (dash != std::string::npos)
+    {
+      std::string cpu1 = optionVal.substr(0, dash);
+      std::string cpu2 = optionVal.substr(dash + 1);
+
+      int firstCpu = std::stoi(cpu1);
+      int secondCpu = std::stoi(cpu2);
+      for (int i = firstCpu; i <= secondCpu; i++)
+      {
+        ret.emplace_back(i);
+      }
+    }
+    else if (comma != std::string::npos)
+    {
+      std::cerr << "Not implemented" << std::endl;
+    }
+    else
+    {
+      // ???
+      std::cerr << "Did not know how to parse: " << optionVal << std::endl;
+    }
+
+    return ret;
+  }
+
+  void parseSetting(std::string setting, std::vector<Flag> &flags, std::vector<Option> &options)
+  {
+
+    if (setting.find("=") != std::string::npos)
+    {
+      // split on "="
+      auto pos = setting.find("=");
+      auto optionName = setting.substr(0, pos);
+      auto optionValue = setting.substr(pos + 1);
+
+      for(size_t j = 0; j < options.size(); j++)
+      {
+        if (optionName == options[j].name)
+        {
+          options[j].found = true;
+
+          std::vector<int> cpus = getCpusFromOption(optionValue);
+        }
+      }
+    }
+    else
+    {
+      for (size_t j = 0; j < flags.size(); j++)
+      {
+        if (setting == flags[j].name)
+        {
+          flags[j].found = true;
+        }
+      }
+    }
+  }
+
+  void checkBootSettings()
+  {
+    std::string fileName = "/boot/firmware/cmdline.txt";
+    std::ifstream file(fileName);
+
+    if (!file.is_open())
+    {
+      throw std::runtime_error(COULD_NOT_OPEN_BOOT_OPTIONS);
+    }
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string content = buffer.str();
+
+    char delimeter = ' ';
+
+    // TODO: Configuration in the future
+    std::vector<Flag> flags = {{"rcu_nocb_poll"}, {"nosoftlockup"}};
+    std::vector<Option> cpuOptions = {
+        { "isolcpus", {2, 3}}, 
+        { "rcu_nocbs", {2, 3}},
+        { "nohz_full", {1, 3}},
+        { "kthread_cpus", {0, 1}}
+      };
+
+    std::stringstream settings;
+    // isolcpus=2-3" "nohz_full=2-3" "rcu_nocbs=2-3" "kthread_cpus=0-1" "nosoftlockup" "rcu_nocb_poll"
+    for(size_t i = 0; i < content.length(); i++)
+    {
+      if (content[i] != delimeter)
+      {
+        settings << content[i];
+      }
+      else
+      {
+        std::string setting = settings.str();
+
+        parseSetting(setting, flags, cpuOptions);
+
+        // clear settings
+        settings.str("");
+        settings.clear();
+      }
+    }
+    std::string setting = settings.str();
+    parseSetting(setting, flags, cpuOptions);
+
+    // check if flags were set
+    std::stringstream flagsErr;
+    for (size_t i = 0; i < flags.size(); i++)
+    {
+      if (flags[i].found)
+      {
+        flagsErr << flags[i].name << " ";
+      }
+    }
+    std::string error = flagsErr.str();
+
+    // print error
+    if (error.size() != 0)
+    {
+      std::stringstream cerr;
+      cerr << "WARNING - flags not present: " << error;
+      _logger->log(INFO, cerr.str());
+    }
+  }
+};
+
+std::shared_ptr<RealTimeSettings> SettingsParser::parseSettings()
+{
+  if (_argc < 2)
+  {
+    std::cerr << "Usage: real_time <sleep|isr>" << std::endl;
+    exit(1);
+  }
+
+  SequencerType sequencerType;
+  std::string option = _argv[1];
+  if (option == "sleep")
+  {
+    sequencerType = SEQUENCER_SLEEP; 
+  }
+  else if (option == "isr")
+  {
+    sequencerType = SEQUENCER_ISR;
   }
   else
   {
-    throw std::invalid_argument("Invalid sequencer type");
-  }
-}
-
-void checkSudo()
-{
-  if (getuid() != 0)
-  {
-    throw std::runtime_error("Must run as root");
-  }
-}
-
-void checkBootSettings()
-{
-  std::string fileName = "/boot/firmware/cmdline.txt";
-  std::ifstream file(fileName);
-
-  if (!file.is_open())
-  {
-    throw std::runtime_error(COULD_NOT_OPEN_BOOT_OPTIONS);
+    std::cerr << "Invalid option: " << option << std::endl;
+    exit(1);
   }
 
-  std::stringstream buffer;
-  buffer << file.rdbuf();
-  std::string content = buffer.str();
+  auto factory = std::make_shared<LoggerFactory>(LoggerType::STDOUT, LogLevel::INFO);
+  std::shared_ptr<RealTimeSettings> settings = std::make_shared<RealTimeSettingsImpl>(sequencerType, factory);
 
-  std::cout << "Boot options: " << content << std::endl;
+  return settings;
 }

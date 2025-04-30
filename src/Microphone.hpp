@@ -5,8 +5,6 @@
  */
 #pragma once
 
-#include <alsa/asoundlib.h>
-
 class Microphone
 {
 public:

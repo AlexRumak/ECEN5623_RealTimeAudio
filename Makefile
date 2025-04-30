@@ -2,9 +2,10 @@ CC=g++
 
 CFLAGS=-std=c++23 -Wall -Werror -pedantic
 LIBS=-lasound
-HFILES=src/Fib.hpp src/Stats.hpp src/Sequencer.hpp src/Microphone.hpp src/RealTime.hpp
+HFILES=src/Fib.hpp src/Stats.hpp src/Sequencer.hpp src/Microphone.hpp src/RealTime.hpp src/Logger.hpp
 
-FILES=fib stat sequencer out/Sequencer.o out/Microphone.o
+OUTFILES=out/Logger.o out/RealTime.o out/Sequencer.o out/Microphone.o 
+FILES=fib stat sequencer $(OUTFILES)
 
 all: sequencer
 
@@ -14,16 +15,19 @@ fib: src/Fib.cpp $(HFILES)
 stat: src/Stats.cpp $(HFILES) 
 	$(CC) $(CFLAGS) -o $@ $<
 
-sequencer: src/Main.cpp out/RealTime.o out/Sequencer.o out/Microphone.o $(HFILES)
-	$(CC) $(CFLAGS) -o $@ $< out/Sequencer.o out/Microphone.o out/RealTime.o
+sequencer: src/Main.cpp $(OUTFILES) $(HFILES)
+	$(CC) $(CFLAGS) -o $@ $< $(OUTFILES)
 
 out:
 	mkdir $@
 
-out/RealTime.o: src/RealTime.cpp $(HFILES)
+out/Logger.o: src/Logger.cpp src/Logger.hpp 
 	$(CC) $(CFLAGS) $(LIBS) -c -o $@ $<
 
-out/Microphone.o: src/Microphone.cpp $(HFILES)
+out/RealTime.o: src/RealTime.cpp src/RealTime.hpp src/Logger.hpp
+	$(CC) $(CFLAGS) $(LIBS) -c -o $@ $< 
+
+out/Microphone.o: src/Microphone.cpp src/Microphone.hpp
 	$(CC) $(CFLAGS) $(LIBS) -c -o $@ $< 
 
 out/Sequencer.o: src/Sequencer.cpp $(HFILES)

@@ -37,7 +37,6 @@ public:
 protected:
   void _serviceFunction() override
   {
-    std::cout << "Hello World" << std::endl;
   }
 };
 
@@ -57,7 +56,6 @@ public:
 protected:
   void _serviceFunction() override
   {
-    std::cout << "Hello World" << std::endl;
   }
 };
 
@@ -88,9 +86,13 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
   delete sequencer;
 }
 
-int main(int argc, char* argv[])
+int main(int argc, char **argv)
 {
-  std::shared_ptr<RealTimeSettings> realTimeSettings = RealTimeSettings::parseSettings(argc, argv);
+  SettingsParser *parser = new SettingsParser(argc, argv);
+
+  auto realTimeSettings = parser->parseSettings();
+
+  delete parser;
 
   realTimeSettings->setRealtimeSettings();
 

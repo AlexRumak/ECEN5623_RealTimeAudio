@@ -5,6 +5,7 @@
 #pragma once
 
 #include "Sequencer.hpp"
+#include "Logger.hpp"
 
 #include <memory>
 
@@ -18,58 +19,51 @@ enum SequencerType
 class RealTimeSettings
 {
 public:
-  RealTimeSettings(SequencerType type):
+  RealTimeSettings(SequencerType type, std::shared_ptr<LoggerFactory> factory):
     _sequencerType(type)
   {
     _factory = new SequencerFactory();
+    _logger = factory->createLogger("RealTimeSettings");
+    _loggerFactory = factory;
   }
 
   ~RealTimeSettings()
   {
     delete _factory;
+    delete _logger;
   }
 
   /**
    * @brief Check if the system is configured for real-time operation, and set any options that can be set.
    */
-  void setRealtimeSettings();
+  virtual void setRealtimeSettings() = 0;
 
   /**
    * @brief Create a sequencer object.
    * @return A pointer to the created sequencer object.
    */
-  Sequencer *createSequencer(uint8_t period, uint8_t priority, uint8_t affinity);
+  virtual Sequencer *createSequencer(uint8_t period, uint8_t priority, uint8_t affinity) = 0;
 
-  static std::shared_ptr<RealTimeSettings> parseSettings(int argc, char* argv[])
-  {
-    if (argc < 2)
-    {
-      std::cerr << "Usage: real_time <sleep|isr>" << std::endl;
-      exit(1);
-    }
-
-    SequencerType sequencerType;
-    std::string option = argv[1];
-    if (option == "sleep")
-    {
-      sequencerType = SEQUENCER_SLEEP; 
-    }
-    else if (option == "isr")
-    {
-      sequencerType = SEQUENCER_ISR;
-    }
-    else
-    {
-      std::cerr << "Invalid option: " << option << std::endl;
-      exit(1);
-    }
-
-    std::shared_ptr<RealTimeSettings> settings = std::make_shared<RealTimeSettings>(sequencerType);
-
-    return settings;
-  }
+protected:
+  SequencerType _sequencerType;
+  SequencerFactory* _factory;
+  std::shared_ptr<LoggerFactory> _loggerFactory;
 
 private:
-  SequencerFactory* _factory;
-  SequencerType _sequencerType; 
+  Logger* _logger;
+};
+
+class SettingsParser
+{
+public:
+  SettingsParser(int argc, char **argv)
+  {
+    _argc = argc;
+    _argv = argv;
+  }
+
+  std::shared_ptr<RealTimeSettings> parseSettings();
+private:
+  int _argc;
+  char **_argv;
 };
