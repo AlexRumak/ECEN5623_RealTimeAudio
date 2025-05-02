@@ -19,7 +19,7 @@
 
 
 int             nchannels = 2;
-int             buffer_size = 2048;
+int             buffer_size = 1920; // 480 frames per 10ms
 unsigned int    sample_rate = 48000;
 int             bits = 16;
 

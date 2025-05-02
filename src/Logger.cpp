@@ -6,7 +6,6 @@
 #include "Logger.hpp"
 
 #include <syslog.h>
-
 #include <iostream>
 #include <fstream>
 #include <memory>

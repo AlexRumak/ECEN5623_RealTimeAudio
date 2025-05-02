@@ -46,6 +46,8 @@ void Service::_initializeService()
 
 void Service::_doService()
 {
+  _logger->log(logger::TRACE, "Initializing service " + _serviceName);
+
   _initializeService();
 
   int counter = 0;

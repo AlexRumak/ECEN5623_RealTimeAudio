@@ -8,11 +8,15 @@
 #include "Sequencer.hpp"
 #include "Fib.hpp"
 #include "RealTime.hpp"
+#include "FFT.hpp"
 
 #include <fftw3.h> // FFT library
 #include <csignal>
 #include <iostream>
 #include <ncurses.h> // ncurses for virtual LED display
+#include <cstdint>
+#include <thread>
+#include <memory>
 
 #define SEQUENCER_CORE 2
 #define SERVICES_CORE 3
@@ -49,6 +53,8 @@ public:
 protected:
   ServiceStatus _serviceFunction() override
   {
+    _logger->log(logger::TRACE, "Entering MicrophoneService::_serviceFunction");
+
     int err = _microphone->GetFrames(_audioBuffer);
 
     if (err == -2)
@@ -78,6 +84,8 @@ protected:
     // Notify FFT service that data is ready
     _fftReady.release();
 
+    _logger->log(logger::TRACE, "Exiting MicrophoneService::_serviceFunction");
+
     return SUCCESS;
   }
 
@@ -95,17 +103,19 @@ public:
   {
     _audioBuffer = audioBuffer;
     _logger = loggerFactory->createLogger("FFTService");
-    _in = (double *)fftw_malloc(sizeof(double) * audioBuffer->getBufferSize());
-    _out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * (audioBuffer->getBufferSize() / 2 + 1));
+    _fft = new AudioFFT(_audioBuffer->getBufferSize()/2); // only one channel
   }
 
   ~FFTService()
   {
+    delete _logger;
+    delete _fft;
   }
 
 protected:
   ServiceStatus _serviceFunction() override
   {
+    _logger->log(logger::TRACE, "Entering FFTService::_serviceFunction");
     bool acquired = _fftReady.try_acquire_for(std::chrono::milliseconds(_period));
 
     if (!acquired)
@@ -116,56 +126,44 @@ protected:
     auto writeBuffer = _audioBuffer->getWriteBuffer();
     size_t bufferSize = _audioBuffer->getBufferSize();
 
-    // FFT using FFTW
-    for (size_t i = 0; i < bufferSize; i++)
+    // Max number of frames == 480
+    // bytes = 480 * 2 channels * 2 bytes per sample = 1920 bytes
+
+    // Split left and right channels in buffer
+    auto leftChannel = std::make_unique<uint16_t[]>(bufferSize / 4);
+    auto rightChannel = std::make_unique<uint16_t[]>(bufferSize / 4);
+
+    unsigned char* byteBuffer = reinterpret_cast<unsigned char*>(writeBuffer); // needed to shift appropriately
+    for (size_t i = 0; i < bufferSize / 4; i++)
     {
-      _in[i] = writeBuffer[i];
+      leftChannel[i] = byteBuffer[i * 4] | (byteBuffer[i * 4 + 1] << 8);
+      rightChannel[i] = byteBuffer[i * 4 + 2] | (byteBuffer[i * 4 + 3] << 8);
     }
-    // Create FFTW plan
-    fftw_plan p = fftw_plan_dft_r2c_1d(bufferSize, _in, _out, FFTW_ESTIMATE);
 
-    // Execute FFT
-    fftw_execute(p);
-
-    // Process FFT output
-    double *magnitudes = (double*) malloc(sizeof(double) * (bufferSize/2 + 1));
-    for (size_t i = 0; i < bufferSize/2 + 1; i++) {
-        // Calculate magnitude from real and imaginary parts
-        magnitudes[i] = sqrt(_out[i][0] * _out[i][0] + _out[i][1] * _out[i][1]);
+    // process only one channel
+    auto _in = std::make_unique<double[]>(bufferSize / 4); 
+    for (size_t i = 0; i < bufferSize / 4; i++)
+    {
+      _in[i] = static_cast<double>(leftChannel[i]);
     }
+
+    // Perform FFT
+    std::shared_ptr<double[]> _out = std::make_shared<double[]>(16);
+    _fft->performFFT(std::move(_in), bufferSize/4, _out, 16);
 
     _fftOutputMutex.lock(); //////////////////////////////////////////// critical section
-    int bins_per_bucket = (bufferSize/2) / 16;
-
-    for (size_t i = 0; i < 16; i++)
+    
+    // Copy FFT output to shared buffer
+    for (int i = 0; i < 16; i++)
     {
-      fftOutput[i] = 0;
-
-      // Start and end indices for this bucket
-      size_t start_idx = i * bins_per_bucket;
-      size_t end_idx = (i + 1) * bins_per_bucket;
-      
-      // Make sure we don't exceed the actual output size
-      if (end_idx > bufferSize/2) {
-          end_idx = bufferSize/2;
-      }
-      
-      // Average the magnitudes in this range
-      for (size_t j = start_idx; j < end_idx; j++) {
-        fftOutput[i] += magnitudes[j];
-      }
-      
-      // Average the values
-      if (end_idx > start_idx) {
-        fftOutput[i] /= (end_idx - start_idx);
-      }
+      fftOutput[i] = _out[i];
     }
-    _fftOutputMutex.unlock(); //////////////////////////////////////////// critical section
 
-    fftw_destroy_plan(p);
+    _fftOutputMutex.unlock(); //////////////////////////////////////////// critical section
 
     _fftDone.release();
 
+    _logger->log(logger::TRACE, "Exiting FFTService::_serviceFunction");
     return SUCCESS;
   }
 
@@ -173,8 +171,7 @@ private:
   std::shared_ptr<AudioBuffer> _audioBuffer;
   logger::Logger *_logger;
 
-  double *_in;
-  fftw_complex *_out;
+  AudioFFT *_fft; 
 };
 
 class BeeperService : public Service
@@ -184,7 +181,7 @@ public:
     : Service("beeper[" + id + "]", period, priority, affinity, loggerFactory)
   {
     _audioBuffer = audioBuffer;
-    _internalBuffer = new char[sizeof(double) * 16];
+    _internalBuffer = new double[sizeof(double) * 16];
     _logger = loggerFactory->createLogger("BeeperService");
   }
 
@@ -196,11 +193,14 @@ public:
 protected:
   ServiceStatus _serviceFunction() override
   {
+    _logger->log(logger::TRACE, "Entering BeeperService::_serviceFunction");
     _fftOutputMutex.lock(); ////////////////////////////////// critical section
+    
     for (int i = 0; i < 16; i++)
     {
       ((double *)_internalBuffer)[i] = fftOutput[i];
     }
+
     _fftOutputMutex.unlock(); //////////////////////////////// critical section
 
     clear(); // Clear the screen for the new frame
@@ -221,13 +221,14 @@ protected:
 
     refresh(); // Refresh the screen to show updates
 
+    _logger->log(logger::TRACE, "Exiting BeeperService::_serviceFunction");
     return SUCCESS;
   }
 
 private:
   std::shared_ptr<AudioBuffer> _audioBuffer;
   logger::Logger *_logger;
-  char *_internalBuffer;
+  double *_internalBuffer;
 };
 
 class LogsToFileService : public Service
