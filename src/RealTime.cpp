@@ -200,9 +200,9 @@ private:
 
 std::shared_ptr<RealTimeSettings> SettingsParser::parseSettings()
 {
-  if (_argc != 3)
+  if (_argc != 4)
   {
-    std::cerr << "Usage: real_time <sleep|isr> <terminal|led|muted>" << std::endl;
+    std::cerr << "Usage: real_time <sleep|isr> <terminal|led|muted> <syslog|file|terminal>" << std::endl;
     exit(1);
   }
 
@@ -243,7 +243,27 @@ std::shared_ptr<RealTimeSettings> SettingsParser::parseSettings()
     exit(1);
   }
 
-  auto factory = std::make_shared<logger::LoggerFactory>(logger::LoggerType::FILE, logger::LogLevel::INFO);
+  logger::LoggerType loggerType;
+  std::string loggerTypeStr = _argv[3];
+  if (loggerTypeStr == "syslog")
+  {
+    loggerType = logger::SYSLOG;
+  }
+  else if (loggerTypeStr == "file")
+  {
+    loggerType = logger::FILE;
+  }
+  else if (loggerTypeStr == "terminal")
+  {
+    loggerType = logger::STDOUT;
+  }
+  else
+  {
+    std::cerr << "Invalid logger type: " << loggerTypeStr << std::endl;
+    exit(1);
+  }
+
+  auto factory = std::make_shared<logger::LoggerFactory>(loggerType, logger::LogLevel::INFO);
   std::shared_ptr<RealTimeSettings> settings = std::make_shared<RealTimeSettingsImpl>(sequencerType, oType, factory);
 
   return settings;

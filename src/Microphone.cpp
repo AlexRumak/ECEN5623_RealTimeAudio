@@ -13,13 +13,11 @@
 #include <iostream>
 #include <exception>
 
-#define CHANNELS 2
+#define CHANNELS 1
 #define FORMAT SND_PCM_FORMAT_S16_LE  // 16-bit signed little-endian format
 
-
-
-int             nchannels = 2;
-int             buffer_size = 2048;
+int             nchannels = 1;
+int             buffer_size = 960; // 480 frames per 10ms
 unsigned int    sample_rate = 48000;
 int             bits = 16;
 

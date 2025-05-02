@@ -18,6 +18,13 @@
 #include <semaphore>
 #include <string>
 
+enum ServiceStatus
+{
+  SUCCESS = 0,
+  FAILURE = 1,
+  DEGRADED = 2,
+};
+
 class Service
 {
 public:
@@ -31,10 +38,15 @@ public:
     _releaseService(0)
   {
     _logger = loggerFactory->createLogger(serviceName);
+    _statusCounter = new StatusCounter<ServiceStatus>();
     _service = std::jthread(&Service::_doService, this);
   }
 
-  virtual ~Service() = default;
+  virtual ~Service()
+  {
+    delete _logger;
+    delete _statusCounter;
+  };
 
   void stop();
   void release();
@@ -59,8 +71,13 @@ public:
     return _serviceName;
   }
 
+  StatusCounter<ServiceStatus> *getStatusCounter()
+  {
+    return _statusCounter;
+  }
+
 protected:
-  virtual void _serviceFunction() = 0;
+  virtual ServiceStatus _serviceFunction() = 0;
 
   std::string _serviceName;
   uint16_t _period;
@@ -79,6 +96,7 @@ private:
   long _releaseNumber = 0;
   std::counting_semaphore<1> _releaseService;
   logger::Logger *_logger;
+  StatusCounter<ServiceStatus> *_statusCounter;
 
   volatile std::atomic<bool> _serviceStarted = std::atomic<bool>(false);
   volatile std::atomic<bool> _running = std::atomic<bool>(true);
