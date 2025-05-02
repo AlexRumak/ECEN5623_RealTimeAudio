@@ -274,7 +274,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
 
   Sequencer* sequencer = realTimeSettings->createSequencer(10, maxPriority, SEQUENCER_CORE);
 
-  std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>(2048);
+  std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>(960);
   MicrophoneFactory microphoneFactory(loggerFactory);
   std::shared_ptr<Microphone> microphone = microphoneFactory.createMicrophone(audioBuffer, "hw:3,0");
 
