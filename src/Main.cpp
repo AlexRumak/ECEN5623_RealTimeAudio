@@ -39,7 +39,12 @@ public:
 protected:
   void _serviceFunction() override
   {
-    
+    int err = _microphone->GetFrames(_audioBuffer);
+
+    if (err < 0)
+    {
+      throw std::runtime_error("Failed to get frames from microphone");
+    }
   }
 
 private:
@@ -64,6 +69,16 @@ public:
 protected:
   void _serviceFunction() override
   {
+    auto readBuffer = _audioBuffer->getReadBuffer();
+    size_t bufferSize = _audioBuffer->getBufferSize();
+
+    // output to stdout
+    for (size_t i = 0; i < bufferSize; i++)
+    {
+      std::cout << readBuffer[i];
+    }
+    std::cout << std::endl;
+  
   }
 
 private:
@@ -106,8 +121,9 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
 
   Sequencer* sequencer = realTimeSettings->createSequencer(10, maxPriority, SEQUENCER_CORE);
 
-  std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>();
-  std::shared_ptr<Microphone> microphone = std::make_shared<Microphone>();
+  std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>(1024);
+  MicrophoneFactory microphoneFactory(loggerFactory);
+  std::shared_ptr<Microphone> microphone = microphoneFactory.createMicrophone(audioBuffer, "hw:3,0");
 
   // starts service threads instantly, but will not run anything
   // TODO: Create pattern that creates services while adding them to the sequencer, as this prevents dangling threads.

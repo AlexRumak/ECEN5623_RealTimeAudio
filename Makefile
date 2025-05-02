@@ -16,7 +16,7 @@ stat: src/Stats.cpp $(HFILES)
 	$(CC) $(CFLAGS) -o $@ $<
 
 sequencer: src/Main.cpp $(OUTFILES) $(HFILES)
-	$(CC) $(CFLAGS) -o $@ $< $(OUTFILES)
+	$(CC) $(CFLAGS) -o $@ $< $(OUTFILES) $(LIBS)
 
 out:
 	mkdir $@

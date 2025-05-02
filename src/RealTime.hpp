@@ -15,7 +15,6 @@ enum SequencerType
   SEQUENCER_ISR
 };
 
-// Todo: Replace with static methods if class is unnecessary.
 class RealTimeSettings
 {
 public:
