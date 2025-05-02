@@ -25,11 +25,13 @@ struct Flag
   bool found = false;
 };
 
+
+
 class RealTimeSettingsImpl : public RealTimeSettings
 {
 public:
-  RealTimeSettingsImpl(SequencerType type, bool ledEnabled, std::shared_ptr<logger::LoggerFactory> factory):
-    RealTimeSettings(type, ledEnabled, factory)
+  RealTimeSettingsImpl(SequencerType type, OutputType oType, std::shared_ptr<logger::LoggerFactory> factory):
+    RealTimeSettings(type, oType, factory)
   {
     _logger = factory->createLogger("RealTimeSettingsImpl");
   }
@@ -200,7 +202,7 @@ std::shared_ptr<RealTimeSettings> SettingsParser::parseSettings()
 {
   if (_argc != 3)
   {
-    std::cerr << "Usage: real_time <sleep|isr> <terminal|led>" << std::endl;
+    std::cerr << "Usage: real_time <sleep|isr> <terminal|led|muted>" << std::endl;
     exit(1);
   }
 
@@ -221,15 +223,19 @@ std::shared_ptr<RealTimeSettings> SettingsParser::parseSettings()
   }
 
 
-  bool ledOutput;
+  OutputType oType;
   std::string outputType = _argv[2];
   if (outputType == "terminal")
   {
-    ledOutput = false; 
+    oType = CONSOLE; 
   }
   else if (outputType == "led")
   {
-    ledOutput = true;
+    oType = LED;
+  }
+  else if (outputType == "muted")
+  {
+    oType = MUTED;
   }
   else
   {
@@ -238,7 +244,7 @@ std::shared_ptr<RealTimeSettings> SettingsParser::parseSettings()
   }
 
   auto factory = std::make_shared<logger::LoggerFactory>(logger::LoggerType::FILE, logger::LogLevel::INFO);
-  std::shared_ptr<RealTimeSettings> settings = std::make_shared<RealTimeSettingsImpl>(sequencerType, ledOutput, factory);
+  std::shared_ptr<RealTimeSettings> settings = std::make_shared<RealTimeSettingsImpl>(sequencerType, oType, factory);
 
   return settings;
 }
