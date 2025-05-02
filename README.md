@@ -63,6 +63,16 @@ echo -1 | sudo tee /proc/sys/kernel/sched_rt_runtime_us
 
 Other real-time settings are appropriately set by the program.
 
+**Step 5: Enable SPI Interface and set GPIO pins**
+You can enable the SPI interface by running the following command:
+
+```sh
+sudo raspi-config
+```
+
+Then navigate to `Interfacing Options` -> `SPI` and enable it.
+
+GPIO pin by default is pin 10.
 
 ## Done:
 1. Create sleep based & isr based sequencer

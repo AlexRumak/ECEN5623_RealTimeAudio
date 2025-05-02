@@ -10,14 +10,15 @@ FILES=fib stat sequencer $(OUTFILES)
 
 all: sequencer
 
+########################### APP BUILD ###########################
 fib: src/Fib.cpp $(HFILES)
 	$(CC) $(CFLAGS) -o $@ $<
 
 stat: src/Stats.cpp $(HFILES) 
 	$(CC) $(CFLAGS) -o $@ $<
 
-sequencer: src/Main.cpp $(OUTFILES) $(HFILES)
-	$(CC) $(CFLAGS) -o $@ $< $(OUTFILES) $(LIBS)
+sequencer: src/Main.cpp $(OUTFILES) $(HFILES) led_blink.a
+	$(CC) $(CFLAGS) -o $@ $< $(OUTFILES) $(LIBS) led_blink.a
 
 out/Logger.o: src/Logger.cpp src/Logger.hpp 
 	mkdir -p out
@@ -38,7 +39,34 @@ out/Microphone.o: src/Microphone.cpp src/Microphone.hpp
 out/Sequencer.o: src/Sequencer.cpp $(HFILES)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-clean:
-	rm -f $(FILES)
 
 FORCE: ;
+########################### APP BUILD ###########################
+
+########################### LIB BUILD ###########################
+
+ASSEMBLY_CC=gcc
+ASSEMBLY_CFLAGS=
+ASSEMBLY=led_blink.a
+ASSEMBLY_LIBS=-lm
+ASSEMBLY_SRCS=$(wildcard ws2812b-test/*.c)
+ASSEMBLY_OBJS=$(ASSEMBLY_SRCS:.c=.o)
+
+# for each file in $(ASSEMBLY_SRCS), create a .o file in the same directory
+led_blink.a: $(ASSEMBLY_SRCS)
+	for file in $(ASSEMBLY_SRCS); do \
+		echo "Compiling $$file"; \
+		$(ASSEMBLY_CC) $(ASSEMBLY_CFLAGS) -c $$file -o $${file%.c}.o; \
+	done
+	ar rcs $@ $(ASSEMBLY_OBJS) 
+
+########################### LIB BUILD ###########################
+
+###########################    UTIL   ###########################
+
+clean:
+	rm -f $(FILES)
+	rm -f $(ASSEMBLY)
+	rm -f $(ASSEMBLY_OBJS)
+
+###########################    UTIL   ###########################
