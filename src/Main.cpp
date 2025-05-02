@@ -48,6 +48,7 @@ public:
   {
     _audioBuffer = audioBuffer;
     _microphone = microphone;
+    _serviceConfig = serviceConfig;
     _logger = loggerFactory->createLogger("MicrophoneService");
   }
 
@@ -99,6 +100,7 @@ private:
   std::shared_ptr<AudioBuffer> _audioBuffer;
   std::shared_ptr<Microphone> _microphone;
   logger::Logger *_logger;
+  ServiceConfig _serviceConfig;
 };
 
 class FFTService : public Service
@@ -108,8 +110,9 @@ public:
     : Service("fft[" + id + "]", period, priority, affinity, loggerFactory)
   {
     _audioBuffer = audioBuffer;
+    _serviceConfig = serviceConfig;
     _logger = loggerFactory->createLogger("FFTService");
-    _fft = new AudioFFT(audioBuffer); // only one channel
+    _fft = new AudioFFT(audioBuffer, loggerFactory); // only one channel
   }
 
   ~FFTService()
@@ -131,9 +134,8 @@ protected:
       return FAILURE;
     }
 
-    size_t buckets = 12;
-    auto _out = std::make_shared<uint32_t[]>(buckets);
-    _fft->performFFT(_out, buckets);
+    auto _out = std::make_shared<uint32_t[]>(_serviceConfig.numberOfBuckets);
+    _fft->performFFT(_out, _serviceConfig.numberOfBuckets);
 
     _fftDone.release();
 
@@ -141,7 +143,7 @@ protected:
     _fftOutputMutex.lock(); //////////////////////////////////////////// critical section
     
     // Copy FFT output to shared buffer
-    for (int i = 0; i < 12; i++)
+    for (int i = 0; i < _serviceConfig.numberOfBuckets; i++)
     {
       fftOutput[i] = _out[i];
     }
@@ -156,6 +158,7 @@ protected:
 private:
   std::shared_ptr<AudioBuffer> _audioBuffer;
   logger::Logger *_logger;
+  ServiceConfig _serviceConfig;
 
   AudioFFT *_fft; 
 };
@@ -190,17 +193,36 @@ protected:
 
     _fftOutputMutex.unlock(); //////////////////////////////// critical section
 
+    // print internal buffer
+    if (_logger->baseLevel() >= logger::DEBUG)
+    {
+      std::stringstream output;
+      for (size_t i = 0; i < _serviceConfig.numberOfBuckets; i++)
+      {
+        output << ((double *)_internalBuffer)[i] << " ";
+      }
+      _logger->log(logger::DEBUG, output.str());
+    }
+
     clear(); // Clear the screen for the new frame
     mvprintw(0, 0, "Virtual LED Display:");
 
     // TODO: Fix bucketization of FFT output
     for (size_t i = 0; i < _serviceConfig.numberOfBuckets; i++)
     {
-      int intensity = static_cast<int>((((double *)_internalBuffer)[i] / 65536.0) * 10); // Scale to 0-10
+      // scale buckets with 50 = 0, 120 = 10
+      // 0 - 70
+      int baseLined = ((double *)_internalBuffer)[i] - 50.0;
+
+      _logger->log(logger::DEBUG, "baseLined: " + std::to_string(baseLined));
+
+      int intensity = static_cast<int>(baseLined / 70.0 * 10.0);
+
       mvprintw(i + 1, 0, "LED %2d: ", i);
+
       for (int j = 0; j < intensity; j++)
       {
-        addch('O'); // Display 'O' for each level of intensity
+        addch('0');
       }
     }
 

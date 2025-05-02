@@ -5,6 +5,7 @@
 #pragma once
 
 #include "AudioBuffer.hpp"
+#include "Logger.hpp"
 #include <fftw3.h>
 #include <cmath>
 #include <iostream>
@@ -16,27 +17,16 @@
 class AudioFFT
 {
 public:
-  explicit AudioFFT(std::shared_ptr<AudioBuffer> audioBuffer);
+  explicit AudioFFT(std::shared_ptr<AudioBuffer> audioBuffer, std::shared_ptr<logger::LoggerFactory> loggerFactory);
   ~AudioFFT();
 
   int performFFT(std::shared_ptr<uint32_t[]> out, size_t buckets);
-  /* 
-  {
-    _audioBuffer->getReadBuffer();
-    
-    // TODO: Write FFT logic
 
-    for (size_t i = 0; i < buckets; i++)
-    {
-      out[i] = i * 65536 / 10; // TODO: Replace with actual FFT output
-    }
-    return 0;
-  }
-  */
 private:
   std::shared_ptr<AudioBuffer> _audioBuffer;
   fftw_plan _plan;
   double* _input;
   fftw_complex* _output; 
   size_t _fftSize;
+  logger::Logger* _logger;
 };
