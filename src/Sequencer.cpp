@@ -3,13 +3,13 @@
  */
 
 #include "Sequencer.hpp"
+#include <csignal>
 #include <chrono>
 #include <thread>
 #include <iostream>
 #include <syslog.h>
-#include <csignal>
 
-#define ERROR 1
+#define FATAL_ERR 1
 
 //////////////////// HELPER ////////////////////
 void setCurrentThreadAffinity(int cpu)
@@ -21,7 +21,7 @@ void setCurrentThreadAffinity(int cpu)
     if (pthread_setaffinity_np(self, sizeof(cpu_set_t), &cpuset) != 0)
     {
         std::cerr << "Error setting CPU affinity" << std::endl;
-        exit(ERROR);
+        exit(FATAL_ERR);
     }
 }
 
@@ -32,7 +32,7 @@ void setCurrentThreadPriority(int priority)
     if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &sch) != 0)
     {
         std::cerr << "Error setting thread priority" << std::endl;
-        exit(ERROR);
+        exit(FATAL_ERR);
     }
 }
 
@@ -48,19 +48,33 @@ void Service::_doService()
 {
   _initializeService();
 
+  int counter = 0;
   while (_running)
   {
-    auto acquired = _releaseService.try_acquire_for(std::chrono::milliseconds(_period)); 
+    auto acquired = _releaseService.try_acquire_for(std::chrono::milliseconds(_period * 2)); // TODO: wait for less time, so that we can check if service is still running. Add a helper method for this.
+
+    if (!_running)
+    {
+      _logger->log(logger::INFO, "Service exited " + _serviceName);
+      break;
+    }
     
     if (!acquired)
     {
-      syslog(LOG_WARNING, "Likely service overrun in service");
+      counter++;
+      _logger->log(logger::ERROR, "Service " + _serviceName + " did not release in its 2*period: " + std::to_string(_period * 2) + "ms");
+
+      if (counter > 100)
+      {
+        _logger->log(logger::ERROR, "Service " + _serviceName + " has not released in 100 periods. Stopping service.");
+        _running.store(false);
+      }
       continue;
     }
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    _function();
+    _serviceFunction();
 
     auto stop = std::chrono::high_resolution_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
@@ -93,7 +107,7 @@ void Service::release()
 }
 
 //////////////////// SEQUENCER MAIN ////////////////////
-Sequencer::Sequencer(uint8_t period, uint8_t priority, uint8_t affinity):
+Sequencer::Sequencer(uint16_t period, uint8_t priority, uint8_t affinity):
   _period(period),
   _stats(StatTracker(1000))
 {
@@ -142,12 +156,19 @@ void Sequencer::startServices(std::shared_ptr<std::atomic<bool>> keepRunning)
 
   _initializeSequencer();
 
-  const auto start = std::chrono::high_resolution_clock::now();
+  bool start_set = false;
+  std::chrono::high_resolution_clock::time_point start;
 
   long iterations = 0;
   while(keepRunning->load())
   {
     _waitForRelease();
+
+    if (!start_set)
+    {
+      start = std::chrono::high_resolution_clock::now();
+      start_set = true;
+    }
 
     auto now = std::chrono::high_resolution_clock::now();
     long uElapsed = std::chrono::duration_cast<std::chrono::microseconds>(now - start).count();
@@ -178,7 +199,7 @@ void Sequencer::stopServices()
   printStatistics(_stats, _services);
 }
 
-void Sequencer::_checkPeriodCompatability(uint8_t servicePeriod)
+void Sequencer::_checkPeriodCompatability(uint16_t servicePeriod)
 {
   if (servicePeriod % _period != 0)
   {
@@ -225,7 +246,7 @@ private:
 
   void deleteTimer()
   {
-    if (timer_delete(timerid) == ERROR)
+    if (timer_delete(timerid) == FATAL_ERR)
     {
         perror("timer_delete");
         exit(-1);
@@ -246,7 +267,7 @@ private:
       sa.sa_flags = SA_SIGINFO;
       sa.sa_sigaction = handleAlarm;
       sigemptyset(&sa.sa_mask);
-      if (sigaction(SIGALRM, &sa, NULL) == ERROR)
+      if (sigaction(SIGALRM, &sa, NULL) == FATAL_ERR)
       {
           perror("sigaction");
           exit(-1);
@@ -257,7 +278,7 @@ private:
       sev.sigev_signo = SIGALRM;
       sev.sigev_value.sival_ptr = this;
 
-      if (timer_create(CLOCK_MONOTONIC, &sev, &timerid) == ERROR)
+      if (timer_create(CLOCK_MONOTONIC, &sev, &timerid) == FATAL_ERR)
       {
           perror("timer_create");
           exit(-1);
@@ -269,7 +290,7 @@ private:
       its.it_interval.tv_nsec = intervalMs * 1000000; // Convert milliseconds to nanoseconds
 
       // Start the timer
-      if (timer_settime(timerid, 0, &its, NULL) == ERROR)
+      if (timer_settime(timerid, 0, &its, NULL) == FATAL_ERR)
       {
           perror("timer_settime");
           exit(-1);
@@ -329,12 +350,12 @@ private:
 };
 
 /////////////// SEQUENCER FACTORY ///////////////////
-Sequencer* SequencerFactory::createISRSequencer()
+Sequencer* SequencerFactory::createISRSequencer(uint16_t period, uint8_t priority, uint8_t affinity)
 {
-  return new ISRSequencer(_period, _priority, _affinity);
+  return new ISRSequencer(period, priority, affinity);
 }
 
-Sequencer* SequencerFactory::createSleepSequencer()
+Sequencer* SequencerFactory::createSleepSequencer(uint16_t period, uint8_t priority, uint8_t affinity)
 {
-  return new SleepSequencer(_period, _priority, _affinity);
+  return new SleepSequencer(period, priority, affinity);
 }

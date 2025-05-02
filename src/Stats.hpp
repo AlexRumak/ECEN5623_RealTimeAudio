@@ -1,5 +1,7 @@
 /**
- * @file Stats.hpp File to calculate statistics for different processes. Uses a circular buffer of a given size to prevent dynamic allocations to the buffer.
+ * @file Stats.hpp 
+ * File to calculate statistics for different processes. 
+ * Uses a circular buffer of a given size to prevent dynamic allocations to the buffer.
  */
 #pragma once
 
