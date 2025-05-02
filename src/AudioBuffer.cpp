@@ -52,7 +52,7 @@ char *AudioBuffer::getReadBuffer()
   }
 }
 
-void AudioBuffer::commitWrite()
+void AudioBuffer::swap()
 {
   activeBuffer = (activeBuffer + 1) % 2;
   return;

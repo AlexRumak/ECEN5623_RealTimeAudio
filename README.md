@@ -15,7 +15,8 @@
 
 You must install alsa-lib to compile this project.
 ```sh
- sudo apt install libasound2 libasound2-dev
+sudo apt install libasound2 libasound2-dev
+sudo apt install libfftw3-dev
 ```
 
 Additionally, you must run `./configure.sh` to set the raspberry pi to the appropriate real time configuration.

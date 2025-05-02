@@ -6,6 +6,15 @@
 #pragma once
 #include "Logger.hpp"
 
+namespace Mic {
+  enum Error
+  {
+    MIC_OK = 0,
+    MIC_ERROR = -1,
+    MIC_BUFFER_OVERRUN = -2,
+  };
+};
+
 class Microphone
 {
 public:

@@ -62,16 +62,17 @@ public:
 protected:
   virtual void _serviceFunction() = 0;
 
+  std::string _serviceName;
+  uint16_t _period;
+  uint8_t _priority;
+  uint8_t _affinity;
+
 private:
   void _initializeService();
   void _doService();
 
   // Constructor parameters - order matters
   std::function<void(void)> _function;
-  std::string _serviceName;
-  uint16_t _period;
-  uint8_t _priority;
-  uint8_t _affinity;
   std::jthread _service;
   StatTracker _releaseStats;
   StatTracker _executionTimeStats;

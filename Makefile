@@ -1,7 +1,7 @@
 CC=g++
 
 CFLAGS=-std=c++23 -Wall -Werror -pedantic
-LIBS=-lasound
+LIBS=-lasound -lfftw3 -lm
 HFILES=src/Fib.hpp src/Stats.hpp src/Sequencer.hpp src/Microphone.hpp src/RealTime.hpp src/Logger.hpp src/AudioBuffer.hpp
 
 OUTFILES=out/Logger.o out/RealTime.o out/Sequencer.o out/Microphone.o out/AudioBuffer.o

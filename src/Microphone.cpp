@@ -16,9 +16,11 @@
 #define CHANNELS 2
 #define FORMAT SND_PCM_FORMAT_S16_LE  // 16-bit signed little-endian format
 
+
+
 int             nchannels = 2;
 int             buffer_size = 512;
-unsigned int             sample_rate = 48000;
+unsigned int    sample_rate = 48000;
 int             bits = 16;
 
 class ALSAUSBMicrophone : public Microphone

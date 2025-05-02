@@ -17,7 +17,7 @@ public:
   size_t getBufferSize();
   char *getWriteBuffer();
   char *getReadBuffer();
-  void commitWrite();
+  void swap();
 
 private:
   int activeBuffer;
