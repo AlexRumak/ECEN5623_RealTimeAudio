@@ -32,7 +32,7 @@ std::counting_semaphore<1> _fftReady(0);
 std::counting_semaphore<1> _fftDone(1);
 std::mutex _fftOutputMutex;
 
-uint32_t fftOutput[16] = {0};
+volatile uint32_t fftOutput[16] = {0};
 
 struct ServiceConfig
 {
