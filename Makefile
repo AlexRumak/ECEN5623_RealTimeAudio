@@ -19,10 +19,16 @@ stat: src/Stats.cpp $(HFILES)
 sequencer: src/Main.cpp $(OUTFILES) $(HFILES)
 	$(CC) $(CFLAGS) -o $@ $< $(OUTFILES) $(LIBS)
 
+<<<<<<< Updated upstream
 out:
 	mkdir $@
+=======
+out/AudioBuffer.o: src/AudioBuffer.cpp src/AudioBuffer.hpp
+	$(CC) $(CFLAGS) $(LIBS) -c -o $@ $<
+>>>>>>> Stashed changes
 
 out/Logger.o: src/Logger.cpp src/Logger.hpp 
+	mkdir -p out
 	$(CC) $(CFLAGS) $(LIBS) -c -o $@ $<
 
 out/FFT.o: src/FFT.cpp src/FFT.hpp out/Logger.o
@@ -42,3 +48,5 @@ out/Sequencer.o: src/Sequencer.cpp $(HFILES)
 
 clean:
 	rm -f $(FILES)
+
+FORCE: ;
