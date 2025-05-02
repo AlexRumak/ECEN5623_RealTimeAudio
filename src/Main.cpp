@@ -47,7 +47,7 @@ public:
   }
 
 protected:
-  void _serviceFunction() override
+  ServiceStatus _serviceFunction() override
   {
     int err = _microphone->GetFrames(_audioBuffer);
 
@@ -57,8 +57,8 @@ protected:
     }
     else if (err < 0)
     {
-      // failed to get frames
       _logger->log(logger::ERROR, "Failed to get frames from microphone");
+      return FAILURE;
     }
     else
     {
@@ -69,6 +69,7 @@ protected:
     if (!acquired)
     {
       _logger->log(logger::ERROR, "MicrophoneService timed out waiting for FFT service to finish");
+      return FAILURE;
     }
 
     // Swap buffers
@@ -76,6 +77,8 @@ protected:
 
     // Notify FFT service that data is ready
     _fftReady.release();
+
+    return SUCCESS;
   }
 
 private:
@@ -101,7 +104,7 @@ public:
   }
 
 protected:
-  void _serviceFunction() override
+  ServiceStatus _serviceFunction() override
   {
     bool acquired = _fftReady.try_acquire_for(std::chrono::milliseconds(_period));
 
@@ -162,6 +165,8 @@ protected:
     fftw_destroy_plan(p);
 
     _fftDone.release();
+
+    return SUCCESS;
   }
 
 private:
@@ -189,7 +194,7 @@ public:
   }
 
 protected:
-  void _serviceFunction() override
+  ServiceStatus _serviceFunction() override
   {
     _fftOutputMutex.lock(); ////////////////////////////////// critical section
     for (int i = 0; i < 16; i++)
@@ -215,6 +220,8 @@ protected:
     }
 
     refresh(); // Refresh the screen to show updates
+
+    return SUCCESS;
   }
 
 private:
@@ -237,10 +244,12 @@ public:
   }
 
 protected:
-  void _serviceFunction() override
+  ServiceStatus _serviceFunction() override
   {
     _factory->flush();
     _factory->clear();
+
+    return SUCCESS;
   }
 
 private:

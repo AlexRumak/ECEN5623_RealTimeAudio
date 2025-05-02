@@ -74,7 +74,8 @@ void Service::_doService()
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    _serviceFunction();
+    ServiceStatus status = _serviceFunction();
+    _statusCounter->Add(status);
 
     auto stop = std::chrono::high_resolution_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
@@ -126,6 +127,7 @@ void printServiceStatistics(std::ofstream& file, std::unique_ptr<Service>& servi
   file << "Execution Time Min: " << executionStats.GetMinVal() << "ms\n";
   file << "Release Time Average Error: " << releaseStats.GetAverageDurationMs() << "ms\n";
   file << "Executions that met deadline: " << executionStats.GetNumberCompletedOnTime(service->getPeriod()) << "/" << executionStats.GetNumElements() << "\n";
+  file << "Executions that completed successfully: " << service->getStatusCounter()->GetCount(SUCCESS) << "/" << executionStats.GetNumElements() << "\n";
   file << "================================================================\n";
 }
 

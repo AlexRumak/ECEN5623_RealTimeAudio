@@ -10,6 +10,8 @@
 #include <limits>
 #include <algorithm>
 #include <cmath>
+#include <unordered_map>
+#include <type_traits>
 
 struct StatPoint
 {
@@ -20,6 +22,25 @@ inline bool compareAscending(StatPoint a, StatPoint b)
 {
   return a.timeMs > b.timeMs;
 }
+
+template<typename T> requires std::is_enum_v<T>
+class StatusCounter
+{
+private:
+  std::unordered_map<T, int> _counts;
+public:
+  StatusCounter() = default;
+
+  void Add(T t)
+  {
+    _counts[t]++;
+  }
+
+  int GetCount(T t)
+  {
+    return _counts[t];
+  }
+};
 
 class StatTracker
 {
