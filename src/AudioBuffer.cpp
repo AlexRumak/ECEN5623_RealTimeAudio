@@ -44,11 +44,11 @@ char *AudioBuffer::getReadBuffer()
 {
   if (activeBuffer == 0)
   {
-    return _buffer;
+    return _bufferTwo;
   }
   else
   {
-    return _bufferTwo;
+    return _buffer;
   }
 }
 
