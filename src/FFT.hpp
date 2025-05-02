@@ -12,20 +12,15 @@
 
 // Useful resources:
 // 1. https://www.nti-audio.com/en/support/know-how/fast-fourier-transform-fft#:~:text=The%20%22Fast%20Fourier%20Transform%22%20(,frequency%20information%20about%20the%20signal.
-// 2. 
+// 2. https://www.fftw.org/fftw3_doc/Real_002ddata-DFTs.html
 class AudioFFT
 {
 public:
-  AudioFFT(std::shared_ptr<AudioBuffer> audioBuffer)
-  {
-    _audioBuffer = audioBuffer;
-  }
-  ~AudioFFT()
-  {
+  explicit AudioFFT(std::shared_ptr<AudioBuffer> audioBuffer);
+  ~AudioFFT();
 
-  }
-
-  int performFFT(std::shared_ptr<uint32_t[]> out, size_t buckets)
+  int performFFT(std::shared_ptr<uint32_t[]> out, size_t buckets);
+  /* 
   {
     _audioBuffer->getReadBuffer();
     
@@ -37,7 +32,11 @@ public:
     }
     return 0;
   }
-
+  */
 private:
   std::shared_ptr<AudioBuffer> _audioBuffer;
+  fftw_plan _plan;
+  double* _input;
+  fftw_complex* _output; 
+  size_t _fftSize;
 };
