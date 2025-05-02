@@ -6,6 +6,9 @@
 
 #include <string>
 #include <sstream>
+#include <syslog.h>
+#include <iostream>
+#include <fstream>
 
 namespace logger
 {
@@ -21,8 +24,25 @@ namespace logger
   {
     STDOUT,
     SYSLOG,
-    BACKGROUND
+    FILE 
   };
+
+  inline std::string logLevelStr(LogLevel level)
+  {
+    switch (level)
+    {
+      case ERROR:
+        return "[ERROR]";
+      case INFO:
+        return "[INFO]";
+      case WARNING:
+        return "[WARNING]";
+      case TRACE:
+        return "[TRACE]";
+      default:
+        return "[UNKNOWN]";
+    }
+  }
 
   class Logger
   {
@@ -52,22 +72,6 @@ namespace logger
     LogLevel _level;
     std::string _context;
 
-    virtual std::string logLevelStr(LogLevel level)
-    {
-      switch (level)
-      {
-        case ERROR:
-          return "[ERROR]";
-        case INFO:
-          return "[INFO]";
-        case WARNING:
-          return "[WARNING]";
-        case TRACE:
-          return "[TRACE]";
-        default:
-          return "[UNKNOWN]";
-      }
-    }
 
   private:
     std::string cachedContext = "";
@@ -80,13 +84,71 @@ namespace logger
     {
       _loggerType = type;
       _loglevel = level;
+
+      if (_loggerType == FILE)
+      {
+        file.open("log.txt", std::ios::app);
+        if (!file.is_open())
+        {
+          throw std::ios_base::failure("Failed to open log file");
+        }
+      }
+    }
+
+    ~LoggerFactory()
+    {
+      if (file.is_open())
+      {
+        file.close();
+      }
+    }
+
+    void clear()
+    {
+      buffer.str("");
+      buffer.clear();
+    }
+
+    void flush()
+    {
+      // for each line
+      std::string line;
+      std::istringstream iss(buffer.str());
+      while (std::getline(iss, line))
+      {
+        if (_loggerType == STDOUT)
+        {
+          std::cout << line << std::endl;
+        }
+        else if (_loggerType == SYSLOG)
+        {
+          syslog(LOG_INFO, "%s", line.c_str());
+        }
+        else if (_loggerType == FILE)
+        {
+          if (file.is_open())
+          {
+            file << line << std::endl;
+          }
+        }
+        else
+        {
+          throw std::runtime_error("Not implemented yet");
+        }
+      }
     }
 
     Logger *createLogger(std::string context);
 
+    void writeLn(LogLevel loglevel, std::string context, std::string str)
+    {
+      buffer << logLevelStr(loglevel) << context << " " << str << "\n";
+    } 
+
   private:
+    std::stringstream buffer;
     LoggerType _loggerType;
     LogLevel _loglevel;
+    std::ofstream file;
   };
 }
-

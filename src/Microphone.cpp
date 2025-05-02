@@ -136,21 +136,17 @@ private:
       return 1;
     }
 
-    std::cout << "fragments: " << fragments << std::endl;
-
     unsigned int frame_size = channels * (bits / 8);
     frames = buffer_size / frame_size * fragments;
     if ((err = snd_pcm_hw_params_set_buffer_size_near(_handle, _hwParams, &frames)) < 0) {
         _logger->log(logger::ERROR, "Error setting buffer_size " + std::to_string(frames) + " frames: " + std::string(snd_strerror(err)));
-        return 1;
+      return 1;
     }
 
-    std::cout << "frames: " << frames << std::endl;
-
-    // if (buffer_size != frames * frame_size / fragments) {
-    //     _logger->log(logger::ERROR, "Could not set requested buffer size, asked for " + std::to_string(buffer_size) + " got " + std::to_string(frames * frame_size / fragments));
-    //     buffer_size = frames * frame_size / fragments;
-    // }
+    if (buffer_size != static_cast<int>(frames * frame_size / fragments)) {
+        _logger->log(logger::ERROR, "Could not set requested buffer size, asked for " + std::to_string(buffer_size) + " got " + std::to_string(frames * frame_size / fragments));
+        buffer_size = frames * frame_size / fragments;
+    }
 
     if ((err = snd_pcm_hw_params(_handle, _hwParams)) < 0) {
       _logger->log(logger::ERROR, "Error setting HW params: " + std::string(snd_strerror(err)));

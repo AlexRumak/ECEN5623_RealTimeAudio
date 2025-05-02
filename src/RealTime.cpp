@@ -237,7 +237,7 @@ std::shared_ptr<RealTimeSettings> SettingsParser::parseSettings()
     exit(1);
   }
 
-  auto factory = std::make_shared<logger::LoggerFactory>(logger::LoggerType::SYSLOG, logger::LogLevel::INFO);
+  auto factory = std::make_shared<logger::LoggerFactory>(logger::LoggerType::FILE, logger::LogLevel::INFO);
   std::shared_ptr<RealTimeSettings> settings = std::make_shared<RealTimeSettingsImpl>(sequencerType, ledOutput, factory);
 
   return settings;

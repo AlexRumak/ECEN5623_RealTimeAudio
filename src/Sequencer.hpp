@@ -101,7 +101,7 @@ public:
   }
 
   void startServices(std::shared_ptr<std::atomic<bool>> keepRunning);
-  void stopServices();
+  void stopServices(bool statisticsToFile);
 
 protected:
   std::vector<std::unique_ptr<Service>> _services;

@@ -224,7 +224,7 @@ public:
   LogsToFileService(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory)
     : Service("logstofile[" + id + "]", period, priority, affinity, loggerFactory)
   {
-    
+    _factory = loggerFactory;
   }
 
   ~LogsToFileService(){
@@ -234,7 +234,12 @@ public:
 protected:
   void _serviceFunction() override
   {
+    _factory->flush();
+    _factory->clear();
   }
+
+private:
+  std::shared_ptr<logger::LoggerFactory> _factory;
 };
 
 std::shared_ptr<std::atomic<bool>> keepRunning; 
@@ -247,8 +252,6 @@ void interruptHandler(int sig)
 
 void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
 {
-
-
   std::shared_ptr<logger::LoggerFactory> loggerFactory = realTimeSettings->getLoggerFactory();
 
   int maxPriority = sched_get_priority_max(SCHED_FIFO);
@@ -262,12 +265,11 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
 
   // starts service threads instantly, but will not run anything
   // TODO: Create pattern that creates services while adding them to the sequencer, as this prevents dangling threads.
-  auto serviceOne = std::make_unique<MicrophoneService>("1", 20, maxPriority, SERVICES_CORE, loggerFactory, audioBuffer, microphone); 
-  auto serviceTwo = std::make_unique<FFTService>("2", 20, maxPriority - 1, SERVICES_CORE, loggerFactory, audioBuffer);
+  auto serviceOne = std::make_unique<MicrophoneService>("1", 10, maxPriority, SERVICES_CORE, loggerFactory, audioBuffer, microphone); 
+  auto serviceTwo = std::make_unique<FFTService>("2", 10, maxPriority - 1, SERVICES_CORE, loggerFactory, audioBuffer);
 
   sequencer->addService(std::move(serviceOne));
   sequencer->addService(std::move(serviceTwo));
-
 
   if (!realTimeSettings->ledOutput())
   {
@@ -283,15 +285,11 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
     throw std::runtime_error("LED output not supported yet - to be implemented");
   }
 
-
-
   auto serviceFour = std::make_unique<LogsToFileService>("4", 200, minPriority, SERVICES_CORE, loggerFactory);
-
-
   sequencer->addService(std::move(serviceFour));
 
   sequencer->startServices(keepRunning);
-  sequencer->stopServices();
+  sequencer->stopServices(true);
 
   delete sequencer;
 
