@@ -32,12 +32,17 @@ std::counting_semaphore<1> _fftReady(0);
 std::counting_semaphore<1> _fftDone(1);
 std::mutex _fftOutputMutex;
 
-double fftOutput[16] = {0};
+uint32_t fftOutput[16] = {0};
+
+struct ServiceConfig
+{
+  size_t numberOfBuckets;
+};
 
 class MicrophoneService : public Service
 {
 public:
-  MicrophoneService(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory, std::shared_ptr<AudioBuffer> audioBuffer, std::shared_ptr<Microphone> microphone)
+  MicrophoneService(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory, std::shared_ptr<AudioBuffer> audioBuffer, std::shared_ptr<Microphone> microphone, ServiceConfig serviceConfig)
     : Service("microphone[" + id + "]", period, priority, affinity, loggerFactory)
   {
     _audioBuffer = audioBuffer;
@@ -98,12 +103,12 @@ private:
 class FFTService : public Service
 {
 public:
-  FFTService(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory, std::shared_ptr<AudioBuffer> audioBuffer)
+  FFTService(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory, std::shared_ptr<AudioBuffer> audioBuffer, ServiceConfig serviceConfig)
     : Service("fft[" + id + "]", period, priority, affinity, loggerFactory)
   {
     _audioBuffer = audioBuffer;
     _logger = loggerFactory->createLogger("FFTService");
-    _fft = new AudioFFT(_audioBuffer->getBufferSize()/2); // only one channel
+    _fft = new AudioFFT(audioBuffer); // only one channel
   }
 
   ~FFTService()
@@ -116,52 +121,32 @@ protected:
   ServiceStatus _serviceFunction() override
   {
     _logger->log(logger::TRACE, "Entering FFTService::_serviceFunction");
+
     bool acquired = _fftReady.try_acquire_for(std::chrono::milliseconds(_period));
 
     if (!acquired)
     {
       _logger->log(logger::ERROR, "FFTService timed out waiting for microphone data");
+      return FAILURE;
     }
 
-    auto writeBuffer = _audioBuffer->getWriteBuffer();
-    size_t bufferSize = _audioBuffer->getBufferSize();
+    size_t buckets = 12;
+    auto _out = std::make_shared<uint32_t[]>(buckets);
+    _fft->performFFT(_out, buckets);
 
-    // Max number of frames == 480
-    // bytes = 480 * 2 channels * 2 bytes per sample = 1920 bytes
+    _fftDone.release();
 
-    // Split left and right channels in buffer
-    auto leftChannel = std::make_unique<uint16_t[]>(bufferSize / 4);
-    auto rightChannel = std::make_unique<uint16_t[]>(bufferSize / 4);
-
-    unsigned char* byteBuffer = reinterpret_cast<unsigned char*>(writeBuffer); // needed to shift appropriately
-    for (size_t i = 0; i < bufferSize / 4; i++)
-    {
-      leftChannel[i] = byteBuffer[i * 4] | (byteBuffer[i * 4 + 1] << 8);
-      rightChannel[i] = byteBuffer[i * 4 + 2] | (byteBuffer[i * 4 + 3] << 8);
-    }
-
-    // process only one channel
-    auto _in = std::make_unique<double[]>(bufferSize / 4); 
-    for (size_t i = 0; i < bufferSize / 4; i++)
-    {
-      _in[i] = static_cast<double>(leftChannel[i]);
-    }
-
-    // Perform FFT
-    std::shared_ptr<double[]> _out = std::make_shared<double[]>(16);
-    _fft->performFFT(std::move(_in), bufferSize/4, _out, 16);
-
+    // OUTPUT
     _fftOutputMutex.lock(); //////////////////////////////////////////// critical section
     
     // Copy FFT output to shared buffer
-    for (int i = 0; i < 16; i++)
+    for (int i = 0; i < 12; i++)
     {
       fftOutput[i] = _out[i];
     }
 
     _fftOutputMutex.unlock(); //////////////////////////////////////////// critical section
 
-    _fftDone.release();
 
     _logger->log(logger::TRACE, "Exiting FFTService::_serviceFunction");
     return SUCCESS;
@@ -177,7 +162,7 @@ private:
 class BeeperService : public Service
 {
 public:
-  BeeperService(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory, std::shared_ptr<AudioBuffer> audioBuffer)
+  BeeperService(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory, std::shared_ptr<AudioBuffer> audioBuffer, ServiceConfig serviceConfig)
     : Service("beeper[" + id + "]", period, priority, affinity, loggerFactory)
   {
     _audioBuffer = audioBuffer;
@@ -196,7 +181,7 @@ protected:
     _logger->log(logger::TRACE, "Entering BeeperService::_serviceFunction");
     _fftOutputMutex.lock(); ////////////////////////////////// critical section
     
-    for (int i = 0; i < 16; i++)
+    for (int i = 0; i < 12; i++)
     {
       ((double *)_internalBuffer)[i] = fftOutput[i];
     }
@@ -207,11 +192,9 @@ protected:
     mvprintw(0, 0, "Virtual LED Display:");
 
     // TODO: Fix bucketization of FFT output
-    for (int i = 0; i < 16; i++)
+    for (int i = 0; i < 12; i++)
     {
-      double maxValue = 1000.0; // Adjust this value based on expected maximum
-      double normalizedValue = ((double *)_internalBuffer)[i] / maxValue; // Linear scaling
-      int intensity = std::clamp(static_cast<int>(normalizedValue * 10), 0, 10); // Normalize to 0-10
+      int intensity = static_cast<int>((((double *)_internalBuffer)[i] / 65536.0) * 10); // Scale to 0-10
       mvprintw(i + 1, 0, "LED %2d: ", i);
       for (int j = 0; j < intensity; j++)
       {
@@ -234,7 +217,7 @@ private:
 class LogsToFileService : public Service
 {
 public:
-  LogsToFileService(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory)
+  LogsToFileService(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory, ServiceConfig serviceConfig)
     : Service("logstofile[" + id + "]", period, priority, affinity, loggerFactory)
   {
     _factory = loggerFactory;
@@ -274,14 +257,17 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
 
   Sequencer* sequencer = realTimeSettings->createSequencer(10, maxPriority, SEQUENCER_CORE);
 
+  ServiceConfig serviceConfig;
+  serviceConfig.numberOfBuckets = 12;
+
   std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>(960);
   MicrophoneFactory microphoneFactory(loggerFactory);
   std::shared_ptr<Microphone> microphone = microphoneFactory.createMicrophone(audioBuffer, "hw:3,0");
 
   // starts service threads instantly, but will not run anything
   // TODO: Create pattern that creates services while adding them to the sequencer, as this prevents dangling threads.
-  auto serviceOne = std::make_unique<MicrophoneService>("1", 10, maxPriority, SERVICES_CORE, loggerFactory, audioBuffer, microphone); 
-  auto serviceTwo = std::make_unique<FFTService>("2", 10, maxPriority - 1, SERVICES_CORE, loggerFactory, audioBuffer);
+  auto serviceOne = std::make_unique<MicrophoneService>("1", 10, maxPriority, SERVICES_CORE, loggerFactory, audioBuffer, microphone, serviceConfig); 
+  auto serviceTwo = std::make_unique<FFTService>("2", 10, maxPriority - 1, SERVICES_CORE, loggerFactory, audioBuffer, serviceConfig);
 
   sequencer->addService(std::move(serviceOne));
   sequencer->addService(std::move(serviceTwo));
@@ -292,7 +278,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
     noecho();  // Disable echoing of typed characters
     curs_set(0); // Hide the cursor
     clear();   // Clear the screen
-    auto serviceThree = std::make_unique<BeeperService>("3", 100, maxPriority - 2, SERVICES_CORE, loggerFactory, audioBuffer);
+    auto serviceThree = std::make_unique<BeeperService>("3", 100, maxPriority - 2, SERVICES_CORE, loggerFactory, audioBuffer, serviceConfig);
     sequencer->addService(std::move(serviceThree));
   }
   else if (realTimeSettings->outputType() == MUTED)
@@ -304,7 +290,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
     throw std::runtime_error("LED output not supported yet - to be implemented");
   }
 
-  auto serviceFour = std::make_unique<LogsToFileService>("4", 200, minPriority, SERVICES_CORE, loggerFactory);
+  auto serviceFour = std::make_unique<LogsToFileService>("4", 200, minPriority, SERVICES_CORE, loggerFactory, serviceConfig);
   sequencer->addService(std::move(serviceFour));
 
   sequencer->startServices(keepRunning);
