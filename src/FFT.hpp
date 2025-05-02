@@ -28,6 +28,8 @@ public:
   int performFFT(std::shared_ptr<uint32_t[]> out, size_t buckets)
   {
     _audioBuffer->getReadBuffer();
+    
+    // TODO: Write FFT logic
 
     for (size_t i = 0; i < buckets; i++)
     {
