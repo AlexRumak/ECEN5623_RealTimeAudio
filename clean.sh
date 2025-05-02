@@ -1,1 +1,1 @@
-rm log.txt statistics.txt
+rm -f log.txt statistics.txt
