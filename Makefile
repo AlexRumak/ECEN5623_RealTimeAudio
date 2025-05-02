@@ -1,11 +1,11 @@
 CC=g++
 
-CFLAGS=-std=c++23 -Wall -Werror -pedantic
+CFLAGS=-std=c++23
 DEBUG=-g -fsanitize=address
 LIBS=-lasound -lfftw3 -lm -lncurses
 HFILES=src/Fib.hpp src/Stats.hpp src/Sequencer.hpp src/Microphone.hpp src/RealTime.hpp src/Logger.hpp src/AudioBuffer.hpp src/FFT.hpp
 
-OUTFILES=out/Logger.o out/RealTime.o out/Sequencer.o out/Microphone.o out/AudioBuffer.o out/FFT.o
+OUTFILES=out/Logger.o out/RealTime.o out/Sequencer.o out/Microphone.o out/AudioBuffer.o out/FFT.o out/LedBlinker.o
 FILES=fib stat sequencer $(OUTFILES)
 
 all: sequencer
@@ -17,12 +17,15 @@ fib: src/Fib.cpp $(HFILES)
 stat: src/Stats.cpp $(HFILES) 
 	$(CC) $(CFLAGS) -o $@ $<
 
-sequencer: src/Main.cpp $(OUTFILES) $(HFILES) led_blink.a
+sequencer: src/Main.cpp $(OUTFILES) $(HFILES) 
 	$(CC) $(CFLAGS) -o $@ $< $(OUTFILES) $(LIBS) led_blink.a
 
 out/Logger.o: src/Logger.cpp src/Logger.hpp 
 	mkdir -p out
 	$(CC) $(CFLAGS) $(LIBS) -c -o $@ $<
+
+out/LedBlinker.o: src/LedBlinker.cpp src/LedBlinker.hpp
+	g++ -c src/LedBlinker.cpp -o out/LedBlinker.o
 
 out/FFT.o: src/FFT.cpp src/FFT.hpp out/Logger.o
 	$(CC) $(CFLAGS) $(LIBS) -c -o $@ $<
@@ -49,6 +52,7 @@ ASSEMBLY_CC=gcc
 ASSEMBLY_CFLAGS=
 ASSEMBLY=led_blink.a
 ASSEMBLY_LIBS=-lm
+ASSEMBLY_HFILES=ws2812b_led_control.h mailbox.h ws2811.h pwm.h pcm.h dma.h rpihw.h
 ASSEMBLY_SRCS=$(wildcard ws2812b-test/*.c)
 ASSEMBLY_OBJS=$(ASSEMBLY_SRCS:.c=.o)
 

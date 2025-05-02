@@ -9,6 +9,7 @@
 #include "Fib.hpp"
 #include "RealTime.hpp"
 #include "FFT.hpp"
+#include "LedBlinker.hpp"
 
 #include <fftw3.h> // FFT library
 #include <csignal>
@@ -166,7 +167,8 @@ public:
     : Service("beeper[" + id + "]", period, priority, affinity, loggerFactory)
   {
     _audioBuffer = audioBuffer;
-    _internalBuffer = new double[sizeof(double) * 16];
+    _serviceConfig = serviceConfig;
+    _internalBuffer = new double[sizeof(double) * _serviceConfig.numberOfBuckets];
     _logger = loggerFactory->createLogger("BeeperService");
   }
 
@@ -181,7 +183,7 @@ protected:
     _logger->log(logger::TRACE, "Entering BeeperService::_serviceFunction");
     _fftOutputMutex.lock(); ////////////////////////////////// critical section
     
-    for (int i = 0; i < 12; i++)
+    for (size_t i = 0; i < _serviceConfig.numberOfBuckets; i++)
     {
       ((double *)_internalBuffer)[i] = fftOutput[i];
     }
@@ -192,7 +194,7 @@ protected:
     mvprintw(0, 0, "Virtual LED Display:");
 
     // TODO: Fix bucketization of FFT output
-    for (int i = 0; i < 12; i++)
+    for (size_t i = 0; i < _serviceConfig.numberOfBuckets; i++)
     {
       int intensity = static_cast<int>((((double *)_internalBuffer)[i] / 65536.0) * 10); // Scale to 0-10
       mvprintw(i + 1, 0, "LED %2d: ", i);
@@ -212,6 +214,50 @@ private:
   std::shared_ptr<AudioBuffer> _audioBuffer;
   logger::Logger *_logger;
   double *_internalBuffer;
+  ServiceConfig _serviceConfig;
+};
+
+class LEDBlinker : public Service
+{
+public:
+  LEDBlinker(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory, ServiceConfig serviceConfig)
+    : Service("ledblinker[" + id + "]", period, priority, affinity, loggerFactory)
+  {
+    _serviceConfig = serviceConfig;
+    _internalBuffer = new double[sizeof(double) * _serviceConfig.numberOfBuckets];
+    _logger = loggerFactory->createLogger("LEDBlinker");
+    _ledBlinker = std::make_unique<LedBlinker>();
+  }
+
+  ~LEDBlinker()
+  {
+    delete[] _internalBuffer;
+  }
+
+protected:
+  ServiceStatus _serviceFunction() override
+  {
+    _logger->log(logger::TRACE, "Entering LEDBlinker::_serviceFunction");
+
+    _fftOutputMutex.lock(); ////////////////////////////////// critical section
+    
+    for (size_t i = 0; i < _serviceConfig.numberOfBuckets; i++)
+    {
+      ((double *)_internalBuffer)[i] = fftOutput[i];
+    }
+
+    _fftOutputMutex.unlock(); //////////////////////////////// critical section
+
+    _ledBlinker->simulate(); 
+
+    _logger->log(logger::TRACE, "Exiting LEDBlinker::_serviceFunction");
+  }
+
+private:
+  logger::Logger *_logger;
+  double *_internalBuffer;
+  ServiceConfig _serviceConfig;
+  std::unique_ptr<LedBlinker> _ledBlinker;
 };
 
 class LogsToFileService : public Service
@@ -285,9 +331,14 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
   {
     // do nothing
   }
+  else if (realTimeSettings->outputType() == LED)
+  {
+    auto serviceThree = std::make_unique<LEDBlinker>("3", 100, maxPriority - 2, SERVICES_CORE, loggerFactory, serviceConfig);
+    sequencer->addService(std::move(serviceThree));
+  }
   else
   {
-    throw std::runtime_error("LED output not supported yet - to be implemented");
+    throw std::runtime_error("not yet supporte - to be implemented");
   }
 
   auto serviceFour = std::make_unique<LogsToFileService>("4", 200, minPriority, SERVICES_CORE, loggerFactory, serviceConfig);
