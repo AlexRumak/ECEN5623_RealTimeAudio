@@ -12,6 +12,7 @@
 #include <fftw3.h> // FFT library
 #include <csignal>
 #include <iostream>
+#include <ncurses.h> // ncurses for virtual LED display
 
 #define SEQUENCER_CORE 2
 #define SERVICES_CORE 3
@@ -166,7 +167,6 @@ private:
   fftw_complex *_out;
 };
 
-// TODO: Replace with LED service
 class BeeperService : public Service
 {
 public:
@@ -178,8 +178,9 @@ public:
     _logger = loggerFactory->createLogger("BeeperService");
   }
 
-  ~BeeperService(){
-
+  ~BeeperService()
+  {
+    delete[] _internalBuffer;
   }
 
 protected:
@@ -192,11 +193,23 @@ protected:
     }
     _fftOutputMutex.unlock(); //////////////////////////////// critical section
 
-    // print output
+    clear(); // Clear the screen for the new frame
+    mvprintw(0, 0, "Virtual LED Display:");
+
+    // TODO: Fix bucketization of FFT output
     for (int i = 0; i < 16; i++)
     {
-      _logger->log(logger::INFO, "FFT output[" + std::to_string(i) + "] = " + std::to_string(((double *)_internalBuffer)[i]));
+      double maxValue = 1000.0; // Adjust this value based on expected maximum
+      double normalizedValue = ((double *)_internalBuffer)[i] / maxValue; // Linear scaling
+      int intensity = std::clamp(static_cast<int>(normalizedValue * 10), 0, 10); // Normalize to 0-10
+      mvprintw(i + 1, 0, "LED %2d: ", i);
+      for (int j = 0; j < intensity; j++)
+      {
+        addch('O'); // Display 'O' for each level of intensity
+      }
     }
+
+    refresh(); // Refresh the screen to show updates
   }
 
 private:
@@ -234,6 +247,8 @@ void interruptHandler(int sig)
 
 void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
 {
+
+
   std::shared_ptr<logger::LoggerFactory> loggerFactory = realTimeSettings->getLoggerFactory();
 
   int maxPriority = sched_get_priority_max(SCHED_FIFO);
@@ -249,18 +264,38 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
   // TODO: Create pattern that creates services while adding them to the sequencer, as this prevents dangling threads.
   auto serviceOne = std::make_unique<MicrophoneService>("1", 20, maxPriority, SERVICES_CORE, loggerFactory, audioBuffer, microphone); 
   auto serviceTwo = std::make_unique<FFTService>("2", 20, maxPriority - 1, SERVICES_CORE, loggerFactory, audioBuffer);
-  auto serviceThree = std::make_unique<BeeperService>("3", 100, maxPriority - 2, SERVICES_CORE, loggerFactory, audioBuffer);
-  auto serviceFour = std::make_unique<LogsToFileService>("4", 200, minPriority, SERVICES_CORE, loggerFactory);
 
   sequencer->addService(std::move(serviceOne));
   sequencer->addService(std::move(serviceTwo));
-  sequencer->addService(std::move(serviceThree));
+
+
+  if (!realTimeSettings->ledOutput())
+  {
+    initscr(); // Initialize ncurses
+    noecho();  // Disable echoing of typed characters
+    curs_set(0); // Hide the cursor
+    clear();   // Clear the screen
+    auto serviceThree = std::make_unique<BeeperService>("3", 100, maxPriority - 2, SERVICES_CORE, loggerFactory, audioBuffer);
+    sequencer->addService(std::move(serviceThree));
+  }
+  else
+  {
+    throw std::runtime_error("LED output not supported yet - to be implemented");
+  }
+
+
+
+  auto serviceFour = std::make_unique<LogsToFileService>("4", 200, minPriority, SERVICES_CORE, loggerFactory);
+
+
   sequencer->addService(std::move(serviceFour));
 
   sequencer->startServices(keepRunning);
   sequencer->stopServices();
 
   delete sequencer;
+
+  endwin(); // Clean up ncurses
 }
 
 int main(int argc, char **argv)

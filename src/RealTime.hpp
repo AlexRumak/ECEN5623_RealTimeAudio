@@ -18,12 +18,13 @@ enum SequencerType
 class RealTimeSettings
 {
 public:
-  RealTimeSettings(SequencerType type, std::shared_ptr<logger::LoggerFactory> factory):
+  RealTimeSettings(SequencerType type, bool ledEnabled, std::shared_ptr<logger::LoggerFactory> factory):
     _sequencerType(type)
   {
     _factory = new SequencerFactory();
     _logger = factory->createLogger("RealTimeSettings");
     _loggerFactory = factory;
+    _ledEnabled = ledEnabled;
   }
 
   ~RealTimeSettings()
@@ -38,6 +39,11 @@ public:
   std::shared_ptr<logger::LoggerFactory> getLoggerFactory()
   {
     return _loggerFactory;
+  }
+
+  bool ledOutput()
+  {
+    return _ledEnabled;
   }
 
   /**
@@ -58,6 +64,7 @@ protected:
 
 private:
   logger::Logger* _logger;
+  bool _ledEnabled = false;
 };
 
 class SettingsParser
