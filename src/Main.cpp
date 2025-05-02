@@ -25,6 +25,7 @@ FibonacciLoadGenerator fib20(SEQ, TWENTYMS);
 
 std::counting_semaphore<1> _fftReady(0);
 std::counting_semaphore<1> _fftDone(1);
+std::mutex _fftOutputMutex;
 
 double fftOutput[16] = {0};
 
@@ -124,6 +125,7 @@ protected:
         magnitudes[i] = sqrt(_out[i][0] * _out[i][0] + _out[i][1] * _out[i][1]);
     }
 
+    _fftOutputMutex.lock(); //////////////////////////////////////////// critical section
     int bins_per_bucket = (bufferSize/2) / 16;
 
     for (size_t i = 0; i < 16; i++)
@@ -149,6 +151,7 @@ protected:
         fftOutput[i] /= (end_idx - start_idx);
       }
     }
+    _fftOutputMutex.unlock(); //////////////////////////////////////////// critical section
 
     fftw_destroy_plan(p);
 
@@ -182,11 +185,12 @@ public:
 protected:
   void _serviceFunction() override
   {
-    // copy fft output
+    _fftOutputMutex.lock(); ////////////////////////////////// critical section
     for (int i = 0; i < 16; i++)
     {
       ((double *)_internalBuffer)[i] = fftOutput[i];
     }
+    _fftOutputMutex.unlock(); //////////////////////////////// critical section
 
     // print output
     for (int i = 0; i < 16; i++)
