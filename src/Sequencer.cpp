@@ -115,39 +115,48 @@ Sequencer::Sequencer(uint16_t period, uint8_t priority, uint8_t affinity):
   setCurrentThreadPriority(priority);
 }
 
-void printServiceStatistics(std::unique_ptr<Service>& service, const std::string& name)
+void printServiceStatistics(std::ofstream& file, std::unique_ptr<Service>& service, const std::string& name)
 {
   auto releaseStats = service->releaseStats();
   auto executionStats = service->executionTimeStats();
-  std::cout << "================================================================\n";
-  std::cout << "Service " << name << " Execution Statistics\n";
-  std::cout << "Execution Time Average: " << executionStats.GetAverageDurationMs() << "ms\n";
-  std::cout << "Execution Time Max: " << executionStats.GetMaxVal() << "ms\n";
-  std::cout << "Execution Time Min: " << executionStats.GetMinVal() << "ms\n";
-  std::cout << "Release Time Average Error: " << releaseStats.GetAverageDurationMs() << "ms\n";
-  std::cout << "Executions that met deadline: " << executionStats.GetNumberCompletedOnTime(service->getPeriod()) << "/" << executionStats.GetNumElements() << "\n";
-  std::cout << "================================================================\n";
+  file << "================================================================\n";
+  file << "Service " << name << " Execution Statistics\n";
+  file << "Execution Time Average: " << executionStats.GetAverageDurationMs() << "ms\n";
+  file << "Execution Time Max: " << executionStats.GetMaxVal() << "ms\n";
+  file << "Execution Time Min: " << executionStats.GetMinVal() << "ms\n";
+  file << "Release Time Average Error: " << releaseStats.GetAverageDurationMs() << "ms\n";
+  file << "Executions that met deadline: " << executionStats.GetNumberCompletedOnTime(service->getPeriod()) << "/" << executionStats.GetNumElements() << "\n";
+  file << "================================================================\n";
 }
 
-void printSequencerStatistics(StatTracker& stats)
+void printSequencerStatistics(std::ofstream& file, StatTracker& stats)
 {
-  std::cout << "\n================================================================\n";
-  std::cout << "Sequencer Execution Statistics\n";
-  std::cout << "Execution Time Error Average: " << stats.GetAverageDurationMs() << "ms\n";
-  std::cout << "Execution Time Error Max: " << stats.GetMaxVal() << "ms\n";
-  std::cout << "Execution Time Error Min: " << stats.GetMinVal() << "ms\n";
-  std::cout << "================================================================\n";
+  file << "\n================================================================\n";
+  file << "Sequencer Execution Statistics\n";
+  file << "Execution Time Error Average: " << stats.GetAverageDurationMs() << "ms\n";
+  file << "Execution Time Error Max: " << stats.GetMaxVal() << "ms\n";
+  file << "Execution Time Error Min: " << stats.GetMinVal() << "ms\n";
+  file << "================================================================\n";
 }
 
 void printStatistics(StatTracker& sequencerStats, std::vector<std::unique_ptr<Service>>& services)
 {
-  printSequencerStatistics(sequencerStats);
+  std::ofstream file("statistics.txt", std::ios::app);
+  if (!file.is_open())
+  {
+    std::cerr << "Error opening statistics.txt for writing" << std::endl;
+    return;
+  }
+
+  printSequencerStatistics(file, sequencerStats);
   // Print execution statistics
   for(auto& service : services)
   {
-    printServiceStatistics(service, service->serviceName());
+    printServiceStatistics(file, service, service->serviceName());
   }
-  std::cout << std::endl;
+  file << std::endl;
+
+  file.close();
 }
 
 void Sequencer::startServices(std::shared_ptr<std::atomic<bool>> keepRunning) 
@@ -189,14 +198,17 @@ void Sequencer::startServices(std::shared_ptr<std::atomic<bool>> keepRunning)
   }
 }
 
-void Sequencer::stopServices()
+void Sequencer::stopServices(bool statisticsToFile)
 {
   for(auto& service : _services)
   {
     service->stop();
   }
 
-  printStatistics(_stats, _services);
+  if (statisticsToFile)
+  {
+    printStatistics(_stats, _services);
+  }
 }
 
 void Sequencer::_checkPeriodCompatability(uint16_t servicePeriod)

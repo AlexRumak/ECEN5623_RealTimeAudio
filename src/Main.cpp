@@ -289,7 +289,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
   sequencer->addService(std::move(serviceFour));
 
   sequencer->startServices(keepRunning);
-  sequencer->stopServices();
+  sequencer->stopServices(true);
 
   delete sequencer;
 
