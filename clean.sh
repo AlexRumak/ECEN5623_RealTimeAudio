@@ -1,0 +1,1 @@
+rm log.txt statistics.txt

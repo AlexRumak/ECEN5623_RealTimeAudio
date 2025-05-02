@@ -2,3 +2,6 @@
 out/
 
 sequencer
+
+log.txt
+statistics.txt

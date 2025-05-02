@@ -15,16 +15,23 @@ enum SequencerType
   SEQUENCER_ISR
 };
 
+enum OutputType
+{
+  LED,
+  CONSOLE,
+  MUTED
+};
+
 class RealTimeSettings
 {
 public:
-  RealTimeSettings(SequencerType type, bool ledEnabled, std::shared_ptr<logger::LoggerFactory> factory):
+  RealTimeSettings(SequencerType type, OutputType oType, std::shared_ptr<logger::LoggerFactory> factory):
     _sequencerType(type)
   {
     _factory = new SequencerFactory();
     _logger = factory->createLogger("RealTimeSettings");
     _loggerFactory = factory;
-    _ledEnabled = ledEnabled;
+    _oType = oType;
   }
 
   ~RealTimeSettings()
@@ -41,9 +48,9 @@ public:
     return _loggerFactory;
   }
 
-  bool ledOutput()
+  OutputType outputType()
   {
-    return _ledEnabled;
+    return _oType;
   }
 
   /**
@@ -64,7 +71,7 @@ protected:
 
 private:
   logger::Logger* _logger;
-  bool _ledEnabled = false;
+  OutputType _oType;
 };
 
 class SettingsParser

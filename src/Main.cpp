@@ -57,7 +57,12 @@ protected:
     }
     else if (err < 0)
     {
-      throw std::runtime_error("Failed to get frames from microphone");
+      // failed to get frames
+      _logger->log(logger::ERROR, "Failed to get frames from microphone");
+    }
+    else
+    {
+      _logger->log(logger::TRACE, "Got " + std::to_string(err) + " frames from microphone");
     }
 
     bool acquired = _fftDone.try_acquire_for(std::chrono::milliseconds(_period));
@@ -259,7 +264,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
 
   Sequencer* sequencer = realTimeSettings->createSequencer(10, maxPriority, SEQUENCER_CORE);
 
-  std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>(1024);
+  std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>(2048);
   MicrophoneFactory microphoneFactory(loggerFactory);
   std::shared_ptr<Microphone> microphone = microphoneFactory.createMicrophone(audioBuffer, "hw:3,0");
 
@@ -271,7 +276,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
   sequencer->addService(std::move(serviceOne));
   sequencer->addService(std::move(serviceTwo));
 
-  if (!realTimeSettings->ledOutput())
+  if (realTimeSettings->outputType() == CONSOLE)
   {
     initscr(); // Initialize ncurses
     noecho();  // Disable echoing of typed characters
@@ -279,6 +284,10 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
     clear();   // Clear the screen
     auto serviceThree = std::make_unique<BeeperService>("3", 100, maxPriority - 2, SERVICES_CORE, loggerFactory, audioBuffer);
     sequencer->addService(std::move(serviceThree));
+  }
+  else if (realTimeSettings->outputType() == MUTED)
+  {
+    // do nothing
   }
   else
   {

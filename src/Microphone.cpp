@@ -19,7 +19,7 @@
 
 
 int             nchannels = 2;
-int             buffer_size = 512;
+int             buffer_size = 2048;
 unsigned int    sample_rate = 48000;
 int             bits = 16;
 
@@ -31,7 +31,7 @@ public:
     _logger = loggerFactory->createLogger("ALSAUSBMicrophone");
 
     int err;
-    if ((err = snd_pcm_open(&_handle, deviceName.c_str(), SND_PCM_STREAM_CAPTURE, 0)) < 0) {
+    if ((err = snd_pcm_open(&_handle, deviceName.c_str(), SND_PCM_STREAM_CAPTURE, SND_PCM_NONBLOCK)) < 0) {
         printf("Playback open error: %s\n", snd_strerror(err));
         exit(EXIT_FAILURE);
     }
@@ -80,7 +80,7 @@ public:
         return -1;
     } else if (err != (int)frames) {
         _logger->log(logger::ERROR, "short read, read " + std::to_string(err) + " frames");
-        return -1;
+        return err;
     }
 
     return 0;
@@ -93,7 +93,7 @@ private:
     int                 err;
     int                 tmp = 0;
     unsigned int        fragments = 2;
-    snd_pcm_uframes_t frames = 32;
+    snd_pcm_uframes_t frames = 480;
 
     /* allocate memory for hardware parameter structure */ 
     if ((err = snd_pcm_hw_params_malloc(&_hwParams)) < 0) {
@@ -137,7 +137,8 @@ private:
     }
 
     unsigned int frame_size = channels * (bits / 8);
-    frames = buffer_size / frame_size * fragments;
+    frames = buffer_size / frame_size * fragments; // want this to be ~480 frames for 10ms
+
     if ((err = snd_pcm_hw_params_set_buffer_size_near(_handle, _hwParams, &frames)) < 0) {
         _logger->log(logger::ERROR, "Error setting buffer_size " + std::to_string(frames) + " frames: " + std::string(snd_strerror(err)));
       return 1;
