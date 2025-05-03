@@ -9,6 +9,7 @@
 #include <cmath>
 #include <fftw3.h>
 #include <memory>
+#include <algorithm>
 
 AudioFFT::AudioFFT(std::shared_ptr<AudioBuffer> audioBuffer, std::shared_ptr<logger::LoggerFactory> loggerFactory) {
     _logger = loggerFactory->createLogger("AudioFFT");
@@ -49,49 +50,44 @@ int AudioFFT::performFFT(std::shared_ptr<uint32_t[]> out, size_t buckets) {
 
     const double sampleRate = 48000.0;
     const double binWidth = sampleRate / (double)_fftSize;
+    const double minFreq = 20.0;
+    const double maxFreq = 15000.0;
+    //ratio is so each bucket spans a constant factor of the frequncy ; f_min * r^num_buckets = f_max
+    double ratio = std::pow(maxFreq/minFreq, 1.0 / (double)buckets);
 
-    size_t startIndex = (size_t)ceil(20.0 / binWidth); // first bin >= 20 Hz
-    size_t endIndex   = (size_t)floor(15000.0 / binWidth); // last bin <= 15 kHz
-    if (endIndex > _fftSize/2) {
-        endIndex = _fftSize/2;  // cap # of bins at Nyquist lim.
-    }
-    if (startIndex < 1) {
-        startIndex = 1;
-    }
-    if (endIndex < startIndex) {
-        for (size_t b = 0; b < buckets; ++b) {
-            out[b] = 0;
-        }
-        return 0;
-    }
+    //then loop through values of r^i
+    for (size_t b = 0; b < buckets; ++b)
+    {
+        double f_lo = minFreq * std::pow(ratio, (double)b);
+        double f_hi = minFreq * std::pow(ratio, (double)(b + 1));
 
-    size_t totalBins = endIndex - startIndex + 1;
-    size_t binsPerBucket = totalBins / buckets;
-    size_t remainder     = totalBins % buckets;
+        size_t idx_lo = (size_t)std::ceil(f_lo / binWidth);
+        size_t idx_hi = (size_t)std::floor(f_hi / binWidth);
 
-    size_t currentBin = startIndex;
-    for (size_t b = 0; b < buckets; ++b) {
-        // how many bins in this bucket? (distribute remainders to first buckets)
-        size_t count = binsPerBucket + ((b < remainder) ? 1 : 0);
-        if (count == 0) {
+        // clamp to valid range [1 ... N/2] (not sure how fast this call is, might change)
+        idx_lo = std::clamp(idx_lo, (size_t)1, _fftSize/2);
+        idx_hi = std::clamp(idx_hi, (size_t)1, _fftSize/2);
+
+        if (idx_hi < idx_lo) { //i.e. no bins possible
             out[b] = 0;
             continue;
         }
-        // sum magnitudes for this bucket 
-        double sumMag = 0.0;
-        for (size_t j = 0; j < count; ++j) {
-            double real = _output[currentBin + j][0];
-            double imag = _output[currentBin + j][1];
-            double magnitude = sqrt(real*real + imag*imag);
-            sumMag += magnitude;
+
+        // NEW: find *max* magnitude in bin before dB conversion (rather than prior *sum*, as buckets now unequal width)
+        double maxMag = 0.0;
+        for (size_t i = idx_lo; i <= idx_hi; ++i)
+        {
+            double re = _output[i][0];
+            double im = _output[i][1];
+            double mag = std::sqrt(re*re + im*im);
+            if (mag > maxMag) {
+                maxMag = mag;
+            }
         }
-        // move to next set of bins
-        currentBin += count;
-        double avgMag = sumMag / (double)count;
 
         // the db conversion may be wholly unnecessary I have not made up my mind but its simple enough to do so I'm doing it for now
         double ref = 32768.0; // (2^15) 
-        double magRatio = avgMag / ref;
+        double magRatio = maxMag / ref;
         double magdB;
         if (magRatio <= 0.0) {
             magdB = -100.0;  // treat zero mag. as -100 dB
