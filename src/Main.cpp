@@ -266,10 +266,9 @@ protected:
     {
       _internalBuffer[i] = fftOutput[i];
     }
-
-    _fftOutputMutex.unlock(); //////////////////////////////// critical section
-
     _ledBlinker->setColors(_internalBuffer);
+
+    _fftOutputMutex.unlock(); //////////////////////////////// critical section    
 
     _logger->log(logger::TRACE, "Exiting LEDBlinker::_serviceFunction");
   }
