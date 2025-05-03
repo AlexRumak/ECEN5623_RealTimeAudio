@@ -18,7 +18,7 @@ stat: src/Stats.cpp $(HFILES)
 	$(CC) $(CFLAGS) -o $@ $<
 
 sequencer: src/Main.cpp $(OUTFILES) $(HFILES) 
-	$(CC) $(DEBUG) $(CFLAGS) -o $@ $< $(OUTFILES) $(LIBS) led_blink.a
+	$(CC) $(CFLAGS) -o $@ $< $(OUTFILES) $(LIBS) led_blink.a
 
 out/Logger.o: src/Logger.cpp src/Logger.hpp 
 	mkdir -p out
