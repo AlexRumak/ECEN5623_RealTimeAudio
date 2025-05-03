@@ -34,7 +34,7 @@ LedBlinker::LedBlinker(int ledCount)
   ws2811_return_t ret;
   matrix = (ws2811_led_t *)malloc(sizeof(ws2811_led_t) * ledCount);
 
-  ws2811_t ledstring =
+  ledstring =
   {
       .freq = TARGET_FREQ,
       .dmanum = DMA,
