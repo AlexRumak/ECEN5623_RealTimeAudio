@@ -8,7 +8,7 @@ HFILES=src/Fib.hpp src/Stats.hpp src/Sequencer.hpp src/Microphone.hpp src/RealTi
 OUTFILES=out/Logger.o out/RealTime.o out/Sequencer.o out/Microphone.o out/AudioBuffer.o out/FFT.o
 FILES=fib stat sequencer $(OUTFILES)
 
-all: sequencer
+all: led_blink.a sequencer 
 
 fib: src/Fib.cpp $(HFILES)
 	$(CC) $(CFLAGS) -o $@ $<
