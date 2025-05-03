@@ -9,6 +9,7 @@
 #include "Fib.hpp"
 #include "RealTime.hpp"
 #include "FFT.hpp"
+#include "LedBlinker.hpp"
 
 #include <fftw3.h> // FFT library
 #include <csignal>
@@ -47,6 +48,7 @@ public:
   {
     _audioBuffer = audioBuffer;
     _microphone = microphone;
+    _serviceConfig = serviceConfig;
     _logger = loggerFactory->createLogger("MicrophoneService");
   }
 
@@ -98,6 +100,7 @@ private:
   std::shared_ptr<AudioBuffer> _audioBuffer;
   std::shared_ptr<Microphone> _microphone;
   logger::Logger *_logger;
+  ServiceConfig _serviceConfig;
 };
 
 class FFTService : public Service
@@ -107,8 +110,9 @@ public:
     : Service("fft[" + id + "]", period, priority, affinity, loggerFactory)
   {
     _audioBuffer = audioBuffer;
+    _serviceConfig = serviceConfig;
     _logger = loggerFactory->createLogger("FFTService");
-    _fft = new AudioFFT(audioBuffer); // only one channel
+    _fft = new AudioFFT(audioBuffer, loggerFactory); // only one channel
   }
 
   ~FFTService()
@@ -130,9 +134,8 @@ protected:
       return FAILURE;
     }
 
-    size_t buckets = 12;
-    auto _out = std::make_shared<uint32_t[]>(buckets);
-    _fft->performFFT(_out, buckets);
+    auto _out = std::make_shared<uint32_t[]>(_serviceConfig.numberOfBuckets);
+    _fft->performFFT(_out, _serviceConfig.numberOfBuckets);
 
     _fftDone.release();
 
@@ -140,7 +143,7 @@ protected:
     _fftOutputMutex.lock(); //////////////////////////////////////////// critical section
     
     // Copy FFT output to shared buffer
-    for (int i = 0; i < 12; i++)
+    for (int i = 0; i < _serviceConfig.numberOfBuckets; i++)
     {
       fftOutput[i] = _out[i];
     }
@@ -155,6 +158,7 @@ protected:
 private:
   std::shared_ptr<AudioBuffer> _audioBuffer;
   logger::Logger *_logger;
+  ServiceConfig _serviceConfig;
 
   AudioFFT *_fft; 
 };
@@ -166,7 +170,8 @@ public:
     : Service("beeper[" + id + "]", period, priority, affinity, loggerFactory)
   {
     _audioBuffer = audioBuffer;
-    _internalBuffer = new double[sizeof(double) * 16];
+    _serviceConfig = serviceConfig;
+    _internalBuffer = new double[sizeof(double) * _serviceConfig.numberOfBuckets];
     _logger = loggerFactory->createLogger("BeeperService");
   }
 
@@ -181,24 +186,43 @@ protected:
     _logger->log(logger::TRACE, "Entering BeeperService::_serviceFunction");
     _fftOutputMutex.lock(); ////////////////////////////////// critical section
     
-    for (int i = 0; i < 12; i++)
+    for (size_t i = 0; i < _serviceConfig.numberOfBuckets; i++)
     {
       ((double *)_internalBuffer)[i] = fftOutput[i];
     }
 
     _fftOutputMutex.unlock(); //////////////////////////////// critical section
 
+    // print internal buffer
+    if (_logger->baseLevel() >= logger::DEBUG)
+    {
+      std::stringstream output;
+      for (size_t i = 0; i < _serviceConfig.numberOfBuckets; i++)
+      {
+        output << ((double *)_internalBuffer)[i] << " ";
+      }
+      _logger->log(logger::DEBUG, output.str());
+    }
+
     clear(); // Clear the screen for the new frame
     mvprintw(0, 0, "Virtual LED Display:");
 
     // TODO: Fix bucketization of FFT output
-    for (int i = 0; i < 12; i++)
+    for (size_t i = 0; i < _serviceConfig.numberOfBuckets; i++)
     {
-      int intensity = static_cast<int>((((double *)_internalBuffer)[i] / 65536.0) * 10); // Scale to 0-10
+      // scale buckets with 50 = 0, 120 = 10
+      // 0 - 70
+      int baseLined = ((double *)_internalBuffer)[i] - 50.0;
+
+      _logger->log(logger::DEBUG, "baseLined: " + std::to_string(baseLined));
+
+      int intensity = static_cast<int>(baseLined / 70.0 * 10.0);
+
       mvprintw(i + 1, 0, "LED %2d: ", i);
+
       for (int j = 0; j < intensity; j++)
       {
-        addch('O'); // Display 'O' for each level of intensity
+        addch('0');
       }
     }
 
@@ -212,6 +236,49 @@ private:
   std::shared_ptr<AudioBuffer> _audioBuffer;
   logger::Logger *_logger;
   double *_internalBuffer;
+  ServiceConfig _serviceConfig;
+};
+
+class LEDBlinker : public Service
+{
+public:
+  LEDBlinker(std::string id, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory, ServiceConfig serviceConfig)
+    : Service("ledblinker[" + id + "]", period, priority, affinity, loggerFactory)
+  {
+    _serviceConfig = serviceConfig;
+    _internalBuffer = std::make_shared<uint32_t[]>(sizeof(uint32_t) * _serviceConfig.numberOfBuckets);
+    _logger = loggerFactory->createLogger("LEDBlinker");
+    _ledBlinker = std::make_unique<LedBlinker>(serviceConfig.numberOfBuckets);
+  }
+
+  ~LEDBlinker()
+  {
+  }
+
+protected:
+  ServiceStatus _serviceFunction() override
+  {
+    _logger->log(logger::TRACE, "Entering LEDBlinker::_serviceFunction");
+
+    _fftOutputMutex.lock(); ////////////////////////////////// critical section
+    
+    for (size_t i = 0; i < _serviceConfig.numberOfBuckets; i++)
+    {
+      _internalBuffer[i] = fftOutput[i];
+    }
+
+    _fftOutputMutex.unlock(); //////////////////////////////// critical section
+
+    _ledBlinker->setColors(_internalBuffer);
+
+    _logger->log(logger::TRACE, "Exiting LEDBlinker::_serviceFunction");
+  }
+
+private:
+  logger::Logger *_logger;
+  std::shared_ptr<uint32_t[]> _internalBuffer;
+  ServiceConfig _serviceConfig;
+  std::unique_ptr<LedBlinker> _ledBlinker;
 };
 
 class LogsToFileService : public Service
@@ -258,7 +325,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
   Sequencer* sequencer = realTimeSettings->createSequencer(10, maxPriority, SEQUENCER_CORE);
 
   ServiceConfig serviceConfig;
-  serviceConfig.numberOfBuckets = 12;
+  serviceConfig.numberOfBuckets = 8;
 
   std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>(960);
   MicrophoneFactory microphoneFactory(loggerFactory);
@@ -285,9 +352,14 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
   {
     // do nothing
   }
+  else if (realTimeSettings->outputType() == LED)
+  {
+    auto serviceThree = std::make_unique<LEDBlinker>("3", 100, maxPriority - 2, SERVICES_CORE, loggerFactory, serviceConfig);
+    sequencer->addService(std::move(serviceThree));
+  }
   else
   {
-    throw std::runtime_error("LED output not supported yet - to be implemented");
+    throw std::runtime_error("not yet supporte - to be implemented");
   }
 
   auto serviceFour = std::make_unique<LogsToFileService>("4", 200, minPriority, SERVICES_CORE, loggerFactory, serviceConfig);
