@@ -79,7 +79,7 @@ public:
         snd_pcm_prepare(_handle);
         return -2;
     } else if (err < 0) {
-        _logger->log(logger::ERROR, "read from audio interface failed: %s" + std::string(snd_strerror(err)));
+        _logger->log(logger::ERROR, "read from audio interface failed: " + std::string(snd_strerror(err)));
         return -1;
     } else if (err != (int)frames) {
         _logger->log(logger::ERROR, "short read, read " + std::to_string(err) + " frames");
