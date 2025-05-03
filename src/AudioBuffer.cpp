@@ -52,6 +52,20 @@ char *AudioBuffer::getReadBuffer()
   }
 }
 
+void AudioBuffer::resizeBuffer(size_t newSize)
+{
+  if (newSize != _bufferSize)
+  {
+    delete [] _buffer;
+    delete [] _bufferTwo;
+
+    _bufferSize = newSize;
+    
+    _buffer = new char[_bufferSize];
+    _bufferTwo = new char[_bufferSize];
+  }
+}
+
 void AudioBuffer::swap()
 {
   activeBuffer = (activeBuffer + 1) % 2;
