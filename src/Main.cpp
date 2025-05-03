@@ -327,7 +327,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
   ServiceConfig serviceConfig;
   serviceConfig.numberOfBuckets = 8;
 
-  std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>(960);
+  std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>(960 * 2);
   MicrophoneFactory microphoneFactory(loggerFactory);
   std::shared_ptr<Microphone> microphone = microphoneFactory.createMicrophone(audioBuffer, "hw:3,0");
 

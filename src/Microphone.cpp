@@ -13,11 +13,11 @@
 #include <iostream>
 #include <exception>
 
-#define CHANNELS 1
+#define CHANNELS 3
 #define FORMAT SND_PCM_FORMAT_S16_LE  // 16-bit signed little-endian format
 
-int             nchannels = 1;
-int             buffer_size = 960; // 480 frames per 10ms
+int             nchannels = 2;
+int             buffer_size = 1920; // 480 frames per 10ms
 unsigned int    sample_rate = 48000;
 int             bits = 16;
 
@@ -113,6 +113,7 @@ private:
         _logger->log(logger::ERROR, "cannot set access type: " + std::string(snd_strerror(err)));
         return 1;
     }
+
     // bits = 16
     if ((err = snd_pcm_hw_params_set_format(_handle, _hwParams, SND_PCM_FORMAT_S16_LE)) < 0) {
         _logger->log(logger::ERROR, "cannot set sample format: " + std::string(snd_strerror(err)));
@@ -124,21 +125,27 @@ private:
         _logger->log(logger::ERROR, "cannot set sample rate: " + std::string(snd_strerror(err)));
         return 1;
     }
+
     if (sampleRate != sample_rate) {
         _logger->log(logger::ERROR, "Could not set requested sample rate, asked for " + std::to_string(sample_rate) + " got " + std::to_string(sampleRate));
         sample_rate = tmp;
     }
-    if ((err = snd_pcm_hw_params_set_channels(_handle, _hwParams, channels)) < 0) {
-        _logger->log(logger::ERROR, "cannot set channel count: " + std::string(snd_strerror(err)));
-        return 1;
+
+    alsaChannels = channels;
+    int res = snd_pcm_hw_params_set_channels_near(_handle, _hwParams, &alsaChannels);
+    if (res < 0) {
+      _logger->log(logger::ERROR, "cannot set channel count: " + std::string(snd_strerror(err)));
+      return 1;
     }
+
+    _logger->log(logger::INFO, "Number of channels: " + std::to_string(alsaChannels));
     
     if ((err = snd_pcm_hw_params_set_periods_near(_handle, _hwParams, &fragments, 0)) < 0) {
       _logger->log(logger::ERROR, "Error setting # fragments to " + std::to_string(fragments) + ": " + std::string(snd_strerror(err)));
       return 1;
     }
 
-    unsigned int frame_size = channels * (bits / 8);
+    unsigned int frame_size = alsaChannels * (bits / 8);
     frames = buffer_size / frame_size * fragments; // want this to be ~480 frames for 10ms
 
     if ((err = snd_pcm_hw_params_set_buffer_size_near(_handle, _hwParams, &frames)) < 0) {
@@ -161,6 +168,7 @@ private:
   logger::Logger *_logger;
   snd_pcm_t *_handle;
   snd_pcm_hw_params_t *_hwParams;
+  unsigned int alsaChannels;
 };
 
 std::shared_ptr<Microphone> MicrophoneFactory::createMicrophone(std::shared_ptr<AudioBuffer> audioBuffer, std::string deviceName)
