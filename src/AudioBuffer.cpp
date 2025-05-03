@@ -10,6 +10,7 @@ AudioBuffer::AudioBuffer(size_t initialCapacity, unsigned int channels)
   _buffer = new char[_bufferSize];
   _bufferTwo = new char[_bufferSize];
   activeBuffer = 0;
+  this->channels = channels;
 }
 
 AudioBuffer::~AudioBuffer()
