@@ -246,14 +246,13 @@ public:
     : Service("ledblinker[" + id + "]", period, priority, affinity, loggerFactory)
   {
     _serviceConfig = serviceConfig;
-    _internalBuffer = new double[sizeof(double) * _serviceConfig.numberOfBuckets];
+    _internalBuffer = std::make_shared<uint32_t[]>(sizeof(uint32_t) * _serviceConfig.numberOfBuckets);
     _logger = loggerFactory->createLogger("LEDBlinker");
-    _ledBlinker = std::make_unique<LedBlinker>();
+    _ledBlinker = std::make_unique<LedBlinker>(serviceConfig.numberOfBuckets);
   }
 
   ~LEDBlinker()
   {
-    delete[] _internalBuffer;
   }
 
 protected:
@@ -265,19 +264,19 @@ protected:
     
     for (size_t i = 0; i < _serviceConfig.numberOfBuckets; i++)
     {
-      ((double *)_internalBuffer)[i] = fftOutput[i];
+      _internalBuffer[i] = fftOutput[i];
     }
 
     _fftOutputMutex.unlock(); //////////////////////////////// critical section
 
-    _ledBlinker->simulate(); 
+    _ledBlinker->setColors(_internalBuffer);
 
     _logger->log(logger::TRACE, "Exiting LEDBlinker::_serviceFunction");
   }
 
 private:
   logger::Logger *_logger;
-  double *_internalBuffer;
+  std::shared_ptr<uint32_t[]> _internalBuffer;
   ServiceConfig _serviceConfig;
   std::unique_ptr<LedBlinker> _ledBlinker;
 };
@@ -326,7 +325,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
   Sequencer* sequencer = realTimeSettings->createSequencer(10, maxPriority, SEQUENCER_CORE);
 
   ServiceConfig serviceConfig;
-  serviceConfig.numberOfBuckets = 12;
+  serviceConfig.numberOfBuckets = 8;
 
   std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>(960);
   MicrophoneFactory microphoneFactory(loggerFactory);
