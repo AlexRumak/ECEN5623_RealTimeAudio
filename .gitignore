@@ -5,3 +5,4 @@ sequencer
 
 log.txt
 statistics.txt
+*.a
