@@ -13,11 +13,8 @@
 #include <iostream>
 #include <exception>
 
-#define CHANNELS 3
 #define FORMAT SND_PCM_FORMAT_S16_LE  // 16-bit signed little-endian format
 
-int             nchannels = 2;
-int             buffer_size = 1920; // 480 frames per 10ms
 unsigned int    sample_rate = 48000;
 int             bits = 16;
 
@@ -28,13 +25,17 @@ public:
   {
     _logger = loggerFactory->createLogger("ALSAUSBMicrophone");
 
+    desiredChannels = audioBuffer->getNumberOfChannels();
+
+    _audioBuffer = audioBuffer;
+
     int err;
     if ((err = snd_pcm_open(&_handle, deviceName.c_str(), SND_PCM_STREAM_CAPTURE, SND_PCM_NONBLOCK)) < 0) {
         printf("Playback open error: %s\n", snd_strerror(err));
         exit(EXIT_FAILURE);
     }
 
-    if (configure_alsa_audio(CHANNELS) != 0)
+    if (configure_alsa_audio(desiredChannels) != 0)
     {
       _logger->log(logger::ERROR, "Failed to configure ALSA audio");
       initialized = false;
@@ -78,7 +79,7 @@ public:
         snd_pcm_prepare(_handle);
         return -2;
     } else if (err < 0) {
-        _logger->log(logger::ERROR, "read from audio interface failed: %s" + std::string(snd_strerror(err)));
+        _logger->log(logger::ERROR, "read from audio interface failed: " + std::string(snd_strerror(err)));
         return -1;
     } else if (err != (int)frames) {
         _logger->log(logger::ERROR, "short read, read " + std::to_string(err) + " frames");
@@ -90,7 +91,7 @@ public:
 
 private:
 
-  int configure_alsa_audio(int channels)
+  int configure_alsa_audio(unsigned int channels)
   {
     int                 err;
     int                 tmp = 0;
@@ -138,6 +139,16 @@ private:
       return 1;
     }
 
+    if (channels != alsaChannels)
+    {
+      _logger->log(logger::WARNING, "Could not set requested number of channels, asked for " + std::to_string(channels) + " got " + std::to_string(alsaChannels));
+
+      buffer_size = buffer_size / channels * alsaChannels;
+
+      _audioBuffer->resizeBuffer(buffer_size);
+      _audioBuffer->setNumberOfChannels(alsaChannels);
+    }
+
     _logger->log(logger::INFO, "Number of channels: " + std::to_string(alsaChannels));
     
     if ((err = snd_pcm_hw_params_set_periods_near(_handle, _hwParams, &fragments, 0)) < 0) {
@@ -169,6 +180,9 @@ private:
   snd_pcm_t *_handle;
   snd_pcm_hw_params_t *_hwParams;
   unsigned int alsaChannels;
+  unsigned int desiredChannels;
+  unsigned int buffer_size = 1920;  // tuned for 2 channels, might need to update this elsewhere
+  std::shared_ptr<AudioBuffer> _audioBuffer;
 };
 
 std::shared_ptr<Microphone> MicrophoneFactory::createMicrophone(std::shared_ptr<AudioBuffer> audioBuffer, std::string deviceName)

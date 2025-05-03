@@ -327,7 +327,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
   ServiceConfig serviceConfig;
   serviceConfig.numberOfBuckets = 8;
 
-  std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>(960 * 2);
+  std::shared_ptr<AudioBuffer> audioBuffer = std::make_shared<AudioBuffer>(960 * 2, 2);
   MicrophoneFactory microphoneFactory(loggerFactory);
   std::shared_ptr<Microphone> microphone = microphoneFactory.createMicrophone(audioBuffer, "hw:3,0");
 
@@ -359,7 +359,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
   }
   else
   {
-    throw std::runtime_error("not yet supporte - to be implemented");
+    throw std::runtime_error("not yet supported - to be implemented");
   }
 
   auto serviceFour = std::make_unique<LogsToFileService>("4", 200, minPriority, SERVICES_CORE, loggerFactory, serviceConfig);
