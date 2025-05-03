@@ -4,7 +4,7 @@
 
 #include "AudioBuffer.hpp"
 
-AudioBuffer::AudioBuffer(size_t initialCapacity)
+AudioBuffer::AudioBuffer(size_t initialCapacity, unsigned int channels)
 {
   _bufferSize = initialCapacity;
   _buffer = new char[_bufferSize];
@@ -52,6 +52,11 @@ char *AudioBuffer::getReadBuffer()
   }
 }
 
+void AudioBuffer::setNumberOfChannels(unsigned int channels)
+{
+  this->channels = channels;
+}
+
 void AudioBuffer::resizeBuffer(size_t newSize)
 {
   if (newSize != _bufferSize)
@@ -60,10 +65,15 @@ void AudioBuffer::resizeBuffer(size_t newSize)
     delete [] _bufferTwo;
 
     _bufferSize = newSize;
-    
+
     _buffer = new char[_bufferSize];
     _bufferTwo = new char[_bufferSize];
   }
+}
+
+unsigned int AudioBuffer::getNumberOfChannels()
+{
+  return channels;
 }
 
 void AudioBuffer::swap()
