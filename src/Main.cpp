@@ -332,8 +332,8 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
 
   // starts service threads instantly, but will not run anything
   // TODO: Create pattern that creates services while adding them to the sequencer, as this prevents dangling threads.
-  auto serviceOne = std::make_unique<MicrophoneService>("1", 10, maxPriority, SERVICES_CORE, loggerFactory, audioBuffer, microphone, serviceConfig); 
-  auto serviceTwo = std::make_unique<FFTService>("2", 10, maxPriority - 1, SERVICES_CORE, loggerFactory, audioBuffer, serviceConfig);
+  auto serviceOne = std::make_unique<MicrophoneService>("1", 10, maxPriority - 1, SERVICES_CORE, loggerFactory, audioBuffer, microphone, serviceConfig); 
+  auto serviceTwo = std::make_unique<FFTService>("2", 10, maxPriority - 2, SERVICES_CORE, loggerFactory, audioBuffer, serviceConfig);
 
   sequencer->addService(std::move(serviceOne));
   sequencer->addService(std::move(serviceTwo));
@@ -344,7 +344,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
     noecho();  // Disable echoing of typed characters
     curs_set(0); // Hide the cursor
     clear();   // Clear the screen
-    auto serviceThree = std::make_unique<BeeperService>("3", 100, maxPriority - 2, SERVICES_CORE, loggerFactory, audioBuffer, serviceConfig);
+    auto serviceThree = std::make_unique<BeeperService>("3", 100, maxPriority - 3, SERVICES_CORE, loggerFactory, audioBuffer, serviceConfig);
     sequencer->addService(std::move(serviceThree));
   }
   else if (realTimeSettings->outputType() == MUTED)
@@ -353,7 +353,7 @@ void runSequencer(std::shared_ptr<RealTimeSettings> realTimeSettings)
   }
   else if (realTimeSettings->outputType() == LED)
   {
-    auto serviceThree = std::make_unique<LEDBlinker>("3", 100, maxPriority - 2, SERVICES_CORE, loggerFactory, serviceConfig);
+    auto serviceThree = std::make_unique<LEDBlinker>("3", 200, maxPriority, SERVICES_CORE, loggerFactory, serviceConfig);
     sequencer->addService(std::move(serviceThree));
   }
   else
