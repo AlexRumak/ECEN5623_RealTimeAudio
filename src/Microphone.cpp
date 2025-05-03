@@ -37,7 +37,11 @@ public:
     if (configure_alsa_audio(CHANNELS) != 0)
     {
       _logger->log(logger::ERROR, "Failed to configure ALSA audio");
-      throw std::runtime_error("Failed to configure ALSA audio");
+      initialized = false;
+    }
+    else
+    {
+      initialized = true;
     }
   }
 

@@ -1,3 +1,3 @@
 [submodule "ws2812b-test"]
 	path = ws2812b-test
-	url = https://github.com/hyounjunchang/ws2812b-test.git
+	url = git@github.com:hyounjunchang/ws2812b-test.git

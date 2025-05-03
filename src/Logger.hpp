@@ -17,7 +17,8 @@ namespace logger
     ERROR = 0,
     INFO = 1,
     WARNING = 2,
-    TRACE = 3
+    DEBUG = 3,
+    TRACE = 4
   };
 
   enum LoggerType
@@ -39,6 +40,8 @@ namespace logger
         return "[WARNING]";
       case TRACE:
         return "[TRACE]";
+      case DEBUG:
+        return "[DEBUG]";
       default:
         return "[UNKNOWN]";
     }
@@ -54,6 +57,12 @@ namespace logger
     }
     virtual ~Logger() = default;
     virtual void log(LogLevel level, std::string message) = 0;
+
+    logger::LogLevel baseLevel()
+    {
+      return _level;
+    }
+
   protected:
 
     virtual std::string contextStr()
@@ -69,9 +78,9 @@ namespace logger
 
       return cachedContext;
     }
+
     LogLevel _level;
     std::string _context;
-
 
   private:
     std::string cachedContext = "";

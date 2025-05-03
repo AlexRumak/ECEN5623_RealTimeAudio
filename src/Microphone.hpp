@@ -22,6 +22,9 @@ public:
   ~Microphone() = default;
 
   virtual int GetFrames(std::shared_ptr<AudioBuffer> buffer) = 0;
+
+protected:
+  bool initialized = false;
 };
 
 class MicrophoneFactory

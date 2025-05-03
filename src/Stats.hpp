@@ -53,6 +53,11 @@ public:
     _sum = 0;
   }
 
+  ~StatTracker()
+  {
+    delete[] _arr;
+  }
+
   // copies the struct. Might not be high perf.
   void Add(StatPoint stat)
   {
@@ -112,7 +117,10 @@ public:
     std::sort(sorted, sorted + _bufferSize, compareAscending);
 
     auto el = static_cast<int>(std::floor(static_cast<double>(_bufferSize) * percentile));
-    return sorted[el].timeMs;
+    double result = sorted[el].timeMs;
+
+    delete[] sorted;
+    return result;
   }
 
   int GetNumberCompletedOnTime(double deadline)

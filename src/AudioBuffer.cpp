@@ -14,8 +14,8 @@ AudioBuffer::AudioBuffer(size_t initialCapacity)
 
 AudioBuffer::~AudioBuffer()
 {
-  delete _buffer;
-  delete _bufferTwo;
+  delete [] _buffer;
+  delete [] _bufferTwo;
 }
 
 // define:   size_t getBufferSize();

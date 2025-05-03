@@ -8,8 +8,10 @@
 #include <cstdint>
 #include <cmath>
 #include <fftw3.h>
+#include <memory>
 
-AudioFFT::AudioFFT(std::shared_ptr<AudioBuffer> audioBuffer) {
+AudioFFT::AudioFFT(std::shared_ptr<AudioBuffer> audioBuffer, std::shared_ptr<logger::LoggerFactory> loggerFactory) {
+    _logger = loggerFactory->createLogger("AudioFFT");
     _audioBuffer = audioBuffer;
     _fftSize = _audioBuffer->getBufferSize() / sizeof(int16_t);
     _input  = (double*) fftw_malloc(sizeof(double) * _fftSize);
@@ -31,6 +33,16 @@ int AudioFFT::performFFT(std::shared_ptr<uint32_t[]> out, size_t buckets) {
 
     for (size_t i = 0; i < _fftSize; ++i) {
         _input[i] = static_cast<double>(samples[i]);
+    }
+
+    if (_logger->baseLevel() >= logger::TRACE)
+    {
+        // Print _input buffer for debugging
+        std::stringstream output;
+        for (size_t i = 0; i < _fftSize; ++i) {
+            output << _input[i] << " ";
+        }
+        _logger->log(logger::TRACE, output.str());
     }
 
     fftw_execute(_plan);
