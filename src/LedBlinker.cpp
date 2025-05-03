@@ -74,6 +74,6 @@ LedBlinker::~LedBlinker()
 void LedBlinker::setColors(std::shared_ptr<uint32_t[]> audio)
 {
   // Commit the changes to the LED strip
-  update_led_matrix_from_sound(matrix, &audio[0], led_count);
+  update_led_matrix_from_sound(matrix, audio.get(), led_count);
   update_led_color(&ledstring, matrix, led_count);
 }
