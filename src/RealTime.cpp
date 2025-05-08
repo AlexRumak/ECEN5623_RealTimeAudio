@@ -1,69 +1,54 @@
 
 #include "RealTime.hpp"
 
-#include <iostream>
 #include <csignal>
-#include <fstream>
-#include <sstream>
 #include <exception>
+#include <fstream>
+#include <iostream>
+#include <sstream>
 
 #define GENERIC_ERROR 1
 #define COULD_NOT_OPEN_BOOT_OPTIONS "Could not open boot options"
 #define MUST_RUN_AS_ROOT "Must run as root"
 
-struct Option
-{
+struct Option {
   std::string name;
   std::vector<int> cpus;
   bool found = false;
   bool equal = false;
 };
 
-struct Flag
-{
+struct Flag {
   std::string name;
   bool found = false;
 };
 
-
-
-class RealTimeSettingsImpl : public RealTimeSettings
-{
+class RealTimeSettingsImpl : public RealTimeSettings {
 public:
-  RealTimeSettingsImpl(SequencerType type, OutputType oType, std::shared_ptr<logger::LoggerFactory> factory):
-    RealTimeSettings(type, oType, factory)
-  {
+  RealTimeSettingsImpl(SequencerType type, OutputType oType,
+                       std::shared_ptr<logger::LoggerFactory> factory)
+      : RealTimeSettings(type, oType, factory) {
     _logger = factory->createLogger("RealTimeSettingsImpl");
   }
 
-  ~RealTimeSettingsImpl()
-  {
-    delete _logger;
-  }
+  ~RealTimeSettingsImpl() { delete _logger; }
 
-  void setRealtimeSettings() override
-  {
+  void setRealtimeSettings() override {
     checkSudo();
     checkBootSettings();
   }
 
-  Sequencer *createSequencer(uint16_t period, uint8_t priority, uint8_t affinity) override
-  {
-    if (_factory == nullptr)
-    {
+  Sequencer *createSequencer(uint16_t period, uint8_t priority,
+                             uint8_t affinity) override {
+    if (_factory == nullptr) {
       throw std::runtime_error("Factory not initialized");
     }
 
-    if (_sequencerType == SEQUENCER_SLEEP)
-    {
+    if (_sequencerType == SEQUENCER_SLEEP) {
       return _factory->createSleepSequencer(period, priority, affinity);
-    }
-    else if (_sequencerType == SEQUENCER_ISR)
-    {
+    } else if (_sequencerType == SEQUENCER_ISR) {
       return _factory->createISRSequencer(period, priority, affinity);
-    }
-    else
-    {
+    } else {
       throw std::invalid_argument("Invalid sequencer type");
     }
   }
@@ -71,40 +56,31 @@ public:
 private:
   logger::Logger *_logger;
 
-  void checkSudo()
-  {
-    if (getuid() != 0)
-    {
+  void checkSudo() {
+    if (getuid() != 0) {
       throw std::runtime_error("Must run as root");
     }
   }
 
-  std::vector<int> getCpusFromOption(std::string optionVal)
-  {
+  std::vector<int> getCpusFromOption(std::string optionVal) {
     std::vector<int> ret;
 
     // parse optionValue
     auto dash = optionVal.find("-");
     auto comma = optionVal.find(",");
 
-    if (dash != std::string::npos)
-    {
+    if (dash != std::string::npos) {
       std::string cpu1 = optionVal.substr(0, dash);
       std::string cpu2 = optionVal.substr(dash + 1);
 
       int firstCpu = std::stoi(cpu1);
       int secondCpu = std::stoi(cpu2);
-      for (int i = firstCpu; i <= secondCpu; i++)
-      {
+      for (int i = firstCpu; i <= secondCpu; i++) {
         ret.emplace_back(i);
       }
-    }
-    else if (comma != std::string::npos)
-    {
+    } else if (comma != std::string::npos) {
       std::cerr << "Not implemented" << std::endl;
-    }
-    else
-    {
+    } else {
       // ???
       std::cerr << "Did not know how to parse: " << optionVal << std::endl;
     }
@@ -112,44 +88,35 @@ private:
     return ret;
   }
 
-  void parseSetting(std::string setting, std::vector<Flag> &flags, std::vector<Option> &options)
-  {
-    if (setting.find("=") != std::string::npos)
-    {
+  void parseSetting(std::string setting, std::vector<Flag> &flags,
+                    std::vector<Option> &options) {
+    if (setting.find("=") != std::string::npos) {
       // split on "="
       auto pos = setting.find("=");
       auto optionName = setting.substr(0, pos);
       auto optionValue = setting.substr(pos + 1);
 
-      for(size_t j = 0; j < options.size(); j++)
-      {
-        if (optionName == options[j].name)
-        {
+      for (size_t j = 0; j < options.size(); j++) {
+        if (optionName == options[j].name) {
           options[j].found = true;
 
           std::vector<int> cpus = getCpusFromOption(optionValue);
         }
       }
-    }
-    else
-    {
-      for (size_t j = 0; j < flags.size(); j++)
-      {
-        if (setting == flags[j].name)
-        {
+    } else {
+      for (size_t j = 0; j < flags.size(); j++) {
+        if (setting == flags[j].name) {
           flags[j].found = true;
         }
       }
     }
   }
 
-  void checkBootSettings()
-  {
+  void checkBootSettings() {
     std::string fileName = "/boot/firmware/cmdline.txt";
     std::ifstream file(fileName);
 
-    if (!file.is_open())
-    {
+    if (!file.is_open()) {
       throw std::runtime_error(COULD_NOT_OPEN_BOOT_OPTIONS);
     }
 
@@ -161,17 +128,18 @@ private:
 
     // TODO: Configuration in the future
     std::vector<Flag> flags = {{"rcu_nocb_poll"}, {"nosoftlockup"}};
-    std::vector<Option> cpuOptions = {
-        { "isolcpus", {2, 3}}, 
-        { "rcu_nocbs", {2, 3}},
-        { "nohz_full", {1, 3}},
-        { "kthread_cpus", {0, 1}}
-      };
+    std::vector<Option> cpuOptions = {{"isolcpus", {2, 3}},
+                                      {"rcu_nocbs", {2, 3}},
+                                      {"nohz_full", {1, 3}},
+                                      {"kthread_cpus", {0, 1}}};
 
-    // isolcpus=2-3" "nohz_full=2-3" "rcu_nocbs=2-3" "kthread_cpus=0-1" "nosoftlockup" "rcu_nocb_poll"
-    while(content.find(delimeter) != std::string::npos || content.find("\n") != std::string::npos)
-    {
-      auto post = content.find(delimeter) != std::string::npos ? content.find(delimeter) : content.find("\n");
+    // isolcpus=2-3" "nohz_full=2-3" "rcu_nocbs=2-3" "kthread_cpus=0-1"
+    // "nosoftlockup" "rcu_nocb_poll"
+    while (content.find(delimeter) != std::string::npos ||
+           content.find("\n") != std::string::npos) {
+      auto post = content.find(delimeter) != std::string::npos
+                      ? content.find(delimeter)
+                      : content.find("\n");
       auto setting = content.substr(0, post);
       content = content.substr(post + 1);
       parseSetting(setting, flags, cpuOptions);
@@ -179,18 +147,15 @@ private:
 
     // check if flags were set
     std::stringstream flagsErr;
-    for (size_t i = 0; i < flags.size(); i++)
-    {
-      if (!flags[i].found)
-      {
+    for (size_t i = 0; i < flags.size(); i++) {
+      if (!flags[i].found) {
         flagsErr << flags[i].name << " ";
       }
     }
     std::string error = flagsErr.str();
 
     // print error
-    if (error.size() != 0)
-    {
+    if (error.size() != 0) {
       std::stringstream cerr;
       cerr << "WARNING - flags not present: " << error;
       _logger->log(logger::INFO, cerr.str());
@@ -198,73 +163,55 @@ private:
   }
 };
 
-std::shared_ptr<RealTimeSettings> SettingsParser::parseSettings()
-{
-  if (_argc != 4)
-  {
-    std::cerr << "Usage: real_time <sleep|isr> <terminal|led|muted> <syslog|file|terminal>" << std::endl;
+std::shared_ptr<RealTimeSettings> SettingsParser::parseSettings() {
+  if (_argc != 4) {
+    std::cerr << "Usage: real_time <sleep|isr> <terminal|led|muted> "
+                 "<syslog|file|terminal>"
+              << std::endl;
     exit(1);
   }
 
   SequencerType sequencerType;
   std::string option = _argv[1];
-  if (option == "sleep")
-  {
-    sequencerType = SEQUENCER_SLEEP; 
-  }
-  else if (option == "isr")
-  {
+  if (option == "sleep") {
+    sequencerType = SEQUENCER_SLEEP;
+  } else if (option == "isr") {
     sequencerType = SEQUENCER_ISR;
-  }
-  else
-  {
+  } else {
     std::cerr << "Invalid option: " << option << std::endl;
     exit(1);
   }
 
-
   OutputType oType;
   std::string outputType = _argv[2];
-  if (outputType == "terminal")
-  {
-    oType = CONSOLE; 
-  }
-  else if (outputType == "led")
-  {
+  if (outputType == "terminal") {
+    oType = CONSOLE;
+  } else if (outputType == "led") {
     oType = LED;
-  }
-  else if (outputType == "muted")
-  {
+  } else if (outputType == "muted") {
     oType = MUTED;
-  }
-  else
-  {
+  } else {
     std::cerr << "Invalid output type: " << outputType << std::endl;
     exit(1);
   }
 
   logger::LoggerType loggerType;
   std::string loggerTypeStr = _argv[3];
-  if (loggerTypeStr == "syslog")
-  {
+  if (loggerTypeStr == "syslog") {
     loggerType = logger::SYSLOG;
-  }
-  else if (loggerTypeStr == "file")
-  {
+  } else if (loggerTypeStr == "file") {
     loggerType = logger::FILE;
-  }
-  else if (loggerTypeStr == "terminal")
-  {
+  } else if (loggerTypeStr == "terminal") {
     loggerType = logger::STDOUT;
-  }
-  else
-  {
+  } else {
     std::cerr << "Invalid logger type: " << loggerTypeStr << std::endl;
     exit(1);
   }
 
-  auto factory = std::make_shared<logger::LoggerFactory>(loggerType, logger::LogLevel::DEBUG);
-  std::shared_ptr<RealTimeSettings> settings = std::make_shared<RealTimeSettingsImpl>(sequencerType, oType, factory);
+  auto factory = std::make_shared<logger::LoggerFactory>(
+      loggerType, logger::LogLevel::DEBUG);
+  std::shared_ptr<RealTimeSettings> settings =
+      std::make_shared<RealTimeSettingsImpl>(sequencerType, oType, factory);
 
   return settings;
 }

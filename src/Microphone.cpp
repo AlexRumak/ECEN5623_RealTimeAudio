@@ -3,26 +3,26 @@
  * Main class implementation of Microphone
  */
 
-#include "AudioBuffer.hpp"
 #include "Microphone.hpp"
+#include "AudioBuffer.hpp"
 #include "Logger.hpp"
 
-#include <memory>
 #include <alsa/asoundlib.h>
-#include <string>
-#include <iostream>
 #include <exception>
+#include <iostream>
+#include <memory>
+#include <string>
 
-#define FORMAT SND_PCM_FORMAT_S16_LE  // 16-bit signed little-endian format
+#define FORMAT SND_PCM_FORMAT_S16_LE // 16-bit signed little-endian format
 
-unsigned int    sample_rate = 48000;
-int             bits = 16;
+unsigned int sample_rate = 48000;
+int bits = 16;
 
-class ALSAUSBMicrophone : public Microphone
-{
+class ALSAUSBMicrophone : public Microphone {
 public:
-  ALSAUSBMicrophone(std::shared_ptr<logger::LoggerFactory> loggerFactory, std::shared_ptr<AudioBuffer> audioBuffer, std::string deviceName)
-  {
+  ALSAUSBMicrophone(std::shared_ptr<logger::LoggerFactory> loggerFactory,
+                    std::shared_ptr<AudioBuffer> audioBuffer,
+                    std::string deviceName) {
     _logger = loggerFactory->createLogger("ALSAUSBMicrophone");
 
     desiredChannels = audioBuffer->getNumberOfChannels();
@@ -30,41 +30,35 @@ public:
     _audioBuffer = audioBuffer;
 
     int err;
-    if ((err = snd_pcm_open(&_handle, deviceName.c_str(), SND_PCM_STREAM_CAPTURE, SND_PCM_NONBLOCK)) < 0) {
-        printf("Playback open error: %s\n", snd_strerror(err));
-        exit(EXIT_FAILURE);
+    if ((err = snd_pcm_open(&_handle, deviceName.c_str(),
+                            SND_PCM_STREAM_CAPTURE, SND_PCM_NONBLOCK)) < 0) {
+      printf("Playback open error: %s\n", snd_strerror(err));
+      exit(EXIT_FAILURE);
     }
 
-    if (configure_alsa_audio(desiredChannels) != 0)
-    {
+    if (configure_alsa_audio(desiredChannels) != 0) {
       _logger->log(logger::ERROR, "Failed to configure ALSA audio");
       initialized = false;
-    }
-    else
-    {
+    } else {
       initialized = true;
     }
   }
 
-  ~ALSAUSBMicrophone()
-  {
+  ~ALSAUSBMicrophone() {
     delete _logger;
 
-    if (_handle)
-    {
+    if (_handle) {
       snd_pcm_close(_handle);
       _handle = nullptr;
     }
 
-    if (_hwParams)
-    {
+    if (_hwParams) {
       snd_pcm_hw_params_free(_hwParams);
       _hwParams = nullptr;
     }
   }
 
-  int GetFrames(std::shared_ptr<AudioBuffer> buffer) override
-  {
+  int GetFrames(std::shared_ptr<AudioBuffer> buffer) override {
     snd_pcm_uframes_t frames;
     int dir;
 
@@ -75,73 +69,88 @@ public:
 
     err = snd_pcm_readi(_handle, dataBuffer, frames);
     if (err == -EPIPE) {
-        _logger->log(logger::ERROR, "overrun occurred"); 
-        snd_pcm_prepare(_handle);
-        return -2;
+      _logger->log(logger::ERROR, "overrun occurred");
+      snd_pcm_prepare(_handle);
+      return -2;
     } else if (err < 0) {
-        _logger->log(logger::ERROR, "read from audio interface failed: " + std::string(snd_strerror(err)));
-        return -1;
+      _logger->log(logger::ERROR, "read from audio interface failed: " +
+                                      std::string(snd_strerror(err)));
+      return -1;
     } else if (err != (int)frames) {
-        _logger->log(logger::ERROR, "short read, read " + std::to_string(err) + " frames");
-        return err;
+      _logger->log(logger::ERROR,
+                   "short read, read " + std::to_string(err) + " frames");
+      return err;
     }
 
     return 0;
   }
 
 private:
-
-  int configure_alsa_audio(unsigned int channels)
-  {
-    int                 err;
-    int                 tmp = 0;
-    unsigned int        fragments = 2;
+  int configure_alsa_audio(unsigned int channels) {
+    int err;
+    int tmp = 0;
+    unsigned int fragments = 2;
     snd_pcm_uframes_t frames = 480;
 
-    /* allocate memory for hardware parameter structure */ 
+    /* allocate memory for hardware parameter structure */
     if ((err = snd_pcm_hw_params_malloc(&_hwParams)) < 0) {
-        _logger->log(logger::ERROR, "cannot allocate parameter structure (" + std::string(snd_strerror(err)) + ")");
-        return 1;
+      _logger->log(logger::ERROR, "cannot allocate parameter structure (" +
+                                      std::string(snd_strerror(err)) + ")");
+      return 1;
     }
     /* fill structure from current audio parameters */
     if ((err = snd_pcm_hw_params_any(_handle, _hwParams)) < 0) {
-        _logger->log(logger::ERROR, "cannot initialize parameter structure (" + std::string(snd_strerror(err)) + ")");
-        return 1;
-    }
-
-    /* set access type, sample rate, sample format, channels */
-    if ((err = snd_pcm_hw_params_set_access(_handle, _hwParams, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
-        _logger->log(logger::ERROR, "cannot set access type: " + std::string(snd_strerror(err)));
-        return 1;
-    }
-
-    // bits = 16
-    if ((err = snd_pcm_hw_params_set_format(_handle, _hwParams, SND_PCM_FORMAT_S16_LE)) < 0) {
-        _logger->log(logger::ERROR, "cannot set sample format: " + std::string(snd_strerror(err)));
-        return 1;
-    }
-    
-    unsigned int sampleRate = sample_rate;
-    if ((err = snd_pcm_hw_params_set_rate_near(_handle, _hwParams, &sampleRate, 0)) < 0) {
-        _logger->log(logger::ERROR, "cannot set sample rate: " + std::string(snd_strerror(err)));
-        return 1;
-    }
-
-    if (sampleRate != sample_rate) {
-        _logger->log(logger::ERROR, "Could not set requested sample rate, asked for " + std::to_string(sample_rate) + " got " + std::to_string(sampleRate));
-        sample_rate = tmp;
-    }
-
-    alsaChannels = channels;
-    int res = snd_pcm_hw_params_set_channels_near(_handle, _hwParams, &alsaChannels);
-    if (res < 0) {
-      _logger->log(logger::ERROR, "cannot set channel count: " + std::string(snd_strerror(err)));
+      _logger->log(logger::ERROR, "cannot initialize parameter structure (" +
+                                      std::string(snd_strerror(err)) + ")");
       return 1;
     }
 
-    if (channels != alsaChannels)
-    {
-      _logger->log(logger::WARNING, "Could not set requested number of channels, asked for " + std::to_string(channels) + " got " + std::to_string(alsaChannels));
+    /* set access type, sample rate, sample format, channels */
+    if ((err = snd_pcm_hw_params_set_access(
+             _handle, _hwParams, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
+      _logger->log(logger::ERROR,
+                   "cannot set access type: " + std::string(snd_strerror(err)));
+      return 1;
+    }
+
+    // bits = 16
+    if ((err = snd_pcm_hw_params_set_format(_handle, _hwParams,
+                                            SND_PCM_FORMAT_S16_LE)) < 0) {
+      _logger->log(logger::ERROR, "cannot set sample format: " +
+                                      std::string(snd_strerror(err)));
+      return 1;
+    }
+
+    unsigned int sampleRate = sample_rate;
+    if ((err = snd_pcm_hw_params_set_rate_near(_handle, _hwParams, &sampleRate,
+                                               0)) < 0) {
+      _logger->log(logger::ERROR,
+                   "cannot set sample rate: " + std::string(snd_strerror(err)));
+      return 1;
+    }
+
+    if (sampleRate != sample_rate) {
+      _logger->log(logger::ERROR,
+                   "Could not set requested sample rate, asked for " +
+                       std::to_string(sample_rate) + " got " +
+                       std::to_string(sampleRate));
+      sample_rate = tmp;
+    }
+
+    alsaChannels = channels;
+    int res =
+        snd_pcm_hw_params_set_channels_near(_handle, _hwParams, &alsaChannels);
+    if (res < 0) {
+      _logger->log(logger::ERROR, "cannot set channel count: " +
+                                      std::string(snd_strerror(err)));
+      return 1;
+    }
+
+    if (channels != alsaChannels) {
+      _logger->log(logger::WARNING,
+                   "Could not set requested number of channels, asked for " +
+                       std::to_string(channels) + " got " +
+                       std::to_string(alsaChannels));
 
       buffer_size = buffer_size / channels * alsaChannels;
 
@@ -149,28 +158,40 @@ private:
       _audioBuffer->setNumberOfChannels(alsaChannels);
     }
 
-    _logger->log(logger::INFO, "Number of channels: " + std::to_string(alsaChannels));
-    
-    if ((err = snd_pcm_hw_params_set_periods_near(_handle, _hwParams, &fragments, 0)) < 0) {
-      _logger->log(logger::ERROR, "Error setting # fragments to " + std::to_string(fragments) + ": " + std::string(snd_strerror(err)));
+    _logger->log(logger::INFO,
+                 "Number of channels: " + std::to_string(alsaChannels));
+
+    if ((err = snd_pcm_hw_params_set_periods_near(_handle, _hwParams,
+                                                  &fragments, 0)) < 0) {
+      _logger->log(logger::ERROR, "Error setting # fragments to " +
+                                      std::to_string(fragments) + ": " +
+                                      std::string(snd_strerror(err)));
       return 1;
     }
 
     unsigned int frame_size = alsaChannels * (bits / 8);
-    frames = buffer_size / frame_size * fragments; // want this to be ~480 frames for 10ms
+    frames = buffer_size / frame_size *
+             fragments; // want this to be ~480 frames for 10ms
 
-    if ((err = snd_pcm_hw_params_set_buffer_size_near(_handle, _hwParams, &frames)) < 0) {
-        _logger->log(logger::ERROR, "Error setting buffer_size " + std::to_string(frames) + " frames: " + std::string(snd_strerror(err)));
+    if ((err = snd_pcm_hw_params_set_buffer_size_near(_handle, _hwParams,
+                                                      &frames)) < 0) {
+      _logger->log(logger::ERROR,
+                   "Error setting buffer_size " + std::to_string(frames) +
+                       " frames: " + std::string(snd_strerror(err)));
       return 1;
     }
 
     if (buffer_size != static_cast<int>(frames * frame_size / fragments)) {
-        _logger->log(logger::ERROR, "Could not set requested buffer size, asked for " + std::to_string(buffer_size) + " got " + std::to_string(frames * frame_size / fragments));
-        buffer_size = frames * frame_size / fragments;
+      _logger->log(logger::ERROR,
+                   "Could not set requested buffer size, asked for " +
+                       std::to_string(buffer_size) + " got " +
+                       std::to_string(frames * frame_size / fragments));
+      buffer_size = frames * frame_size / fragments;
     }
 
     if ((err = snd_pcm_hw_params(_handle, _hwParams)) < 0) {
-      _logger->log(logger::ERROR, "Error setting HW params: " + std::string(snd_strerror(err)));
+      _logger->log(logger::ERROR, "Error setting HW params: " +
+                                      std::string(snd_strerror(err)));
       return 1;
     }
     return 0;
@@ -181,11 +202,14 @@ private:
   snd_pcm_hw_params_t *_hwParams;
   unsigned int alsaChannels;
   unsigned int desiredChannels;
-  unsigned int buffer_size = 1920;  // tuned for 2 channels, might need to update this elsewhere
+  unsigned int buffer_size =
+      1920; // tuned for 2 channels, might need to update this elsewhere
   std::shared_ptr<AudioBuffer> _audioBuffer;
 };
 
-std::shared_ptr<Microphone> MicrophoneFactory::createMicrophone(std::shared_ptr<AudioBuffer> audioBuffer, std::string deviceName)
-{
-  return std::make_shared<ALSAUSBMicrophone>(this->_loggerFactory, audioBuffer, deviceName);
+std::shared_ptr<Microphone>
+MicrophoneFactory::createMicrophone(std::shared_ptr<AudioBuffer> audioBuffer,
+                                    std::string deviceName) {
+  return std::make_shared<ALSAUSBMicrophone>(this->_loggerFactory, audioBuffer,
+                                             deviceName);
 }

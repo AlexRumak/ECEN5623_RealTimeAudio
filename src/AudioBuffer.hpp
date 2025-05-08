@@ -5,11 +5,10 @@
 
 #pragma once
 
-#include <memory>
 #include <array>
+#include <memory>
 
-class AudioBuffer
-{
+class AudioBuffer {
 public:
   AudioBuffer(size_t initialCapacity, unsigned int channels);
   ~AudioBuffer();

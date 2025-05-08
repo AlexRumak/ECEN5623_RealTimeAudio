@@ -7,16 +7,14 @@
 #include "Logger.hpp"
 
 namespace Mic {
-  enum Error
-  {
-    MIC_OK = 0,
-    MIC_ERROR = -1,
-    MIC_BUFFER_OVERRUN = -2,
-  };
+enum Error {
+  MIC_OK = 0,
+  MIC_ERROR = -1,
+  MIC_BUFFER_OVERRUN = -2,
+};
 };
 
-class Microphone
-{
+class Microphone {
 public:
   Microphone() = default;
   ~Microphone() = default;
@@ -27,19 +25,17 @@ protected:
   bool initialized = false;
 };
 
-class MicrophoneFactory
-{
+class MicrophoneFactory {
 public:
-  MicrophoneFactory(std::shared_ptr<logger::LoggerFactory> loggerFactory)
-  {
+  MicrophoneFactory(std::shared_ptr<logger::LoggerFactory> loggerFactory) {
     _loggerFactory = loggerFactory;
   }
-  
-  ~MicrophoneFactory()
-  {
-  }
 
-  std::shared_ptr<Microphone> createMicrophone(std::shared_ptr<AudioBuffer> audioBuffer, std::string deviceName);
+  ~MicrophoneFactory() {}
+
+  std::shared_ptr<Microphone>
+  createMicrophone(std::shared_ptr<AudioBuffer> audioBuffer,
+                   std::string deviceName);
 
 private:
   std::shared_ptr<logger::LoggerFactory> _loggerFactory;

@@ -1,49 +1,43 @@
 
 /**
  * @file Sequencer.hpp
- * This is a C++ version of a sequencer using sleeps rather than ISR timers. 
- * The sequencer should run on the main core and the RTCore should run the  
+ * This is a C++ version of a sequencer using sleeps rather than ISR timers.
+ * The sequencer should run on the main core and the RTCore should run the
  **/
 #pragma once
 
-#include "Stats.hpp"
 #include "Logger.hpp"
+#include "Stats.hpp"
 
-#include <cstdint>
-#include <vector>
-#include <memory>
 #include <atomic>
+#include <cstdint>
 #include <functional>
-#include <thread>
+#include <memory>
 #include <semaphore>
 #include <string>
+#include <thread>
+#include <vector>
 
-enum ServiceStatus
-{
+enum ServiceStatus {
   SUCCESS = 0,
   FAILURE = 1,
   DEGRADED = 2,
 };
 
-class Service
-{
+class Service {
 public:
-  Service(std::string serviceName, uint16_t period, uint8_t priority, uint8_t affinity, std::shared_ptr<logger::LoggerFactory> loggerFactory) :
-    _serviceName(serviceName),
-    _period(period),
-    _priority(priority),
-    _affinity(affinity),
-    _releaseStats(StatTracker(1000)),
-    _executionTimeStats(StatTracker(1000)),
-    _releaseService(0)
-  {
+  Service(std::string serviceName, uint16_t period, uint8_t priority,
+          uint8_t affinity,
+          std::shared_ptr<logger::LoggerFactory> loggerFactory)
+      : _serviceName(serviceName), _period(period), _priority(priority),
+        _affinity(affinity), _releaseStats(StatTracker(1000)),
+        _executionTimeStats(StatTracker(1000)), _releaseService(0) {
     _logger = loggerFactory->createLogger(serviceName);
     _statusCounter = new StatusCounter<ServiceStatus>();
     _service = std::jthread(&Service::_doService, this);
   }
 
-  virtual ~Service()
-  {
+  virtual ~Service() {
     delete _logger;
     delete _statusCounter;
   };
@@ -51,30 +45,15 @@ public:
   void stop();
   void release();
 
-  uint8_t getPeriod()
-  {
-    return _period;
-  }
+  uint8_t getPeriod() { return _period; }
 
-  StatTracker releaseStats()
-  {
-    return _releaseStats;
-  }
+  StatTracker releaseStats() { return _releaseStats; }
 
-  StatTracker executionTimeStats()
-  {
-    return _executionTimeStats;
-  }
+  StatTracker executionTimeStats() { return _executionTimeStats; }
 
-  std::string serviceName()
-  {
-    return _serviceName;
-  }
+  std::string serviceName() { return _serviceName; }
 
-  StatusCounter<ServiceStatus> *getStatusCounter()
-  {
-    return _statusCounter;
-  }
+  StatusCounter<ServiceStatus> *getStatusCounter() { return _statusCounter; }
 
 protected:
   virtual ServiceStatus _serviceFunction() = 0;
@@ -100,19 +79,18 @@ private:
 
   volatile std::atomic<bool> _serviceStarted = std::atomic<bool>(false);
   volatile std::atomic<bool> _running = std::atomic<bool>(true);
-  volatile std::atomic<std::chrono::high_resolution_clock::time_point> _firstRelease;
+  volatile std::atomic<std::chrono::high_resolution_clock::time_point>
+      _firstRelease;
 };
 
-class Sequencer
-{
+class Sequencer {
 public:
   Sequencer(uint16_t period, uint8_t priority, uint8_t affinity);
 
   virtual ~Sequencer() = default;
-  
-  template<typename... Args>
-  void addService(std::unique_ptr<Service> service)
-  {
+
+  template <typename... Args>
+  void addService(std::unique_ptr<Service> service) {
     _services.emplace_back(std::move(service));
 
     _checkPeriodCompatability(_services[_services.size() - 1]->getPeriod());
@@ -133,13 +111,12 @@ private:
   void _checkPeriodCompatability(uint16_t servicePeriod);
 };
 
-
-
-class SequencerFactory
-{
+class SequencerFactory {
 public:
   SequencerFactory() = default;
 
-  Sequencer* createISRSequencer(uint16_t period, uint8_t priority, uint8_t affinity);
-  Sequencer* createSleepSequencer(uint16_t period, uint8_t priority, uint8_t affinity);
+  Sequencer *createISRSequencer(uint16_t period, uint8_t priority,
+                                uint8_t affinity);
+  Sequencer *createSleepSequencer(uint16_t period, uint8_t priority,
+                                  uint8_t affinity);
 };
